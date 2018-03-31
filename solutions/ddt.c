@@ -42,6 +42,7 @@ int main(int argc, char **argv)
 
     int final_flag;
 
+
     /* initialize MPI envrionment */
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -87,7 +88,7 @@ int main(int argc, char **argv)
     MPI_Type_contiguous(bx, MPI_DOUBLE, &north_south_type); /* Don't do this */
     MPI_Type_commit(&north_south_type);
 
-    /* create east-west type */
+    /* create east-west datatype */
     MPI_Datatype east_west_type;
     MPI_Type_vector(by,1,bx+2,MPI_DOUBLE, &east_west_type);
     MPI_Type_commit(&east_west_type);
@@ -139,6 +140,7 @@ int main(int argc, char **argv)
     if (!rank) printf("[%i] last heat: %f time: %f\n", rank, rheat, t2-t1);
 
     MPI_Finalize();
+    return 0;
 }
 
 void setup(int rank, int proc, int argc, char **argv,
