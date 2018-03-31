@@ -19,7 +19,7 @@ void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr);
 
 int main(int argc, char **argv)
 {
-    int r,p;
+    int rank, size;
     int n, energy, niters, px, py;
 
     int rx, ry;
@@ -34,7 +34,7 @@ int main(int argc, char **argv)
 
     double t1, t2;
 
-    int iter, i, j;
+    int iter, i;
 
     double *aold, *anew, *tmp;
 
@@ -42,19 +42,18 @@ int main(int argc, char **argv)
 
     int final_flag;
 
-    int win_size;     /* window size */
+    int grid_size;     /* window size */
     double *win_mem;  /* window memory */
     MPI_Win win;      /* RMA window */
 
-    MPI_Datatype north_south_type, east_west_type;
 
     /* initialize MPI envrionment */
     MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &r);
-    MPI_Comm_size(MPI_COMM_WORLD, &p);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
     /* argument checking and setting */
-    setup(r, p, argc, argv,
+    setup(rank, size, argc, argv,
           &n, &energy, &niters, &px, &py, &final_flag);
 
     if (final_flag == 1) {
@@ -62,9 +61,9 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-    /* determine my coordinates (x,y) -- r=x*a+y in the 2d processor array */
-    rx = r % px;
-    ry = r / px;
+    /* determine my coordinates (x,y) -- rank=x*a+y in the 2d processor array */
+    rx = rank % px;
+    ry = rank / px;
 
     /* determine my four neighbors */
     north = (ry - 1) * px + rx; if (ry-1 < 0)   north = MPI_PROC_NULL;
@@ -78,31 +77,33 @@ int main(int argc, char **argv)
     offx = rx * bx; /* offset in x */
     offy = ry * by; /* offset in y */
 
-    /* printf("%i (%i,%i) - w: %i, e: %i, n: %i, s: %i\n", r, ry,rx,west,east,north,south); */
+    /* printf("%i (%i,%i) - w: %i, e: %i, n: %i, s: %i\n", rank, ry,rx,west,east,north,south); */
 
     /* allocate RMA window */
-    win_size = (bx + 2) * (by + 2);/* process-local grid (including halos (thus +2))*/
+    grid_size = (bx + 2) * (by + 2);/* process-local grid (including halos (thus +2))*/
 
     /* create RMA window upon working array */
-    MPI_Win_allocate(2*win_size*sizeof(double), sizeof(double), MPI_INFO_NULL,
+    MPI_Win_allocate(2*grid_size*sizeof(double), sizeof(double), MPI_INFO_NULL,
                         MPI_COMM_WORLD, &win_mem, &win);
-    memset(win_mem, 0, 2*win_size*sizeof(double));
+    memset(win_mem, 0, 2*grid_size*sizeof(double));
 
     anew = win_mem;               /* each rank's offset */
-    aold = win_mem + win_size;    /* second half is aold! */
+    aold = win_mem + grid_size;    /* second half is aold! */
 
     /* initialize three heat sources */
     init_sources(bx, by, offx, offy, n,
                  nsources, sources, &locnsources, locsources);
 
     /* create north-south datatype */
-    MPI_Type_contiguous(bx, MPI_DOUBLE, &north_south_type);
+    MPI_Datatype north_south_type;
+    MPI_Type_contiguous(bx, MPI_DOUBLE, &north_south_type); /* Don't do this */
     MPI_Type_commit(&north_south_type);
 
     /* create east-west datatype */
+    MPI_Datatype east_west_type;
     MPI_Type_vector(by, 1, bx+2, MPI_DOUBLE, &east_west_type);
     MPI_Type_commit(&east_west_type);
-    
+
     t1 = MPI_Wtime(); /* take time */
 
     for (iter = 0; iter < niters; ++iter) {
@@ -110,16 +111,15 @@ int main(int argc, char **argv)
         int offset;
 
         /* refresh heat sources */
-        MPI_Win_lock(MPI_LOCK_EXCLUSIVE, r, 0, win); /* lock myself for local load/store */
+        MPI_Win_fence(MPI_MODE_NOPRECEDE, win);
         for (i = 0; i < locnsources; ++i) {
             aold[ind(locsources[i][0],locsources[i][1])] += energy; /* heat source */
         }
-        MPI_Win_unlock(r, win);
 
         /* exchange data with neighbors */
-        MPI_Win_fence(MPI_MODE_NOPRECEDE, win);
+        MPI_Win_fence(0, win);
 
-        offset = win_size * ((iter + 1) % 2);
+        offset = grid_size * ((iter + 1) % 2);
 
         MPI_Put(&aold[ind(1,1)], 1, north_south_type, north,
                 ind(1,by+1)+offset, 1, north_south_type, win);
@@ -133,36 +133,36 @@ int main(int argc, char **argv)
         MPI_Put(&aold[ind(1,1)], 1, east_west_type, west,
                 ind(bx+1,1)+offset, 1, east_west_type, win);
 
-        MPI_Win_fence(MPI_MODE_NOSUCCEED, win);
+        MPI_Win_fence(0, win);
 
         /* update grid points */
-        MPI_Win_lock(MPI_LOCK_EXCLUSIVE, r, 0, win); /* lock myself for local load/store*/
         update_grid(bx, by, aold, anew, &heat);
-        MPI_Win_unlock(r, win);
+        MPI_Win_fence(MPI_MODE_NOSUCCEED, win);
 
         /* swap working arrays */
         tmp = anew; anew = aold; aold = tmp;
 
         /* optional - print image */
         if (iter == niters-1) {
-            MPI_Win_lock(MPI_LOCK_EXCLUSIVE, r, 0, win); /* lock myself for local load/store*/
+            MPI_Win_fence(MPI_MODE_NOPRECEDE, win);
             printarr_par(iter, anew, n, px, py, rx, ry,
                          bx, by, offx, offy, MPI_COMM_WORLD);
-            MPI_Win_unlock(r, win);
+            MPI_Win_fence(MPI_MODE_NOSUCCEED, win);
         }
     }
 
     t2 = MPI_Wtime();
 
-    /* get final heat in the system */
-    MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    if (!r) printf("[%i] last heat: %f time: %f\n", r, rheat, t2-t1);
-
+    MPI_Win_free(&win);
     MPI_Type_free(&east_west_type);
     MPI_Type_free(&north_south_type);
-    MPI_Win_free(&win);
+
+    /* get final heat in the system */
+    MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    if (!rank) printf("[%i] last heat: %f time: %f\n", rank, rheat, t2-t1);
 
     MPI_Finalize();
+    return 0;
 }
 
 void setup(int rank, int proc, int argc, char **argv,
@@ -225,6 +225,7 @@ void init_sources(int bx, int by, int offx, int offy, int n,
 
     (*locnsources_ptr) = locnsources;
 }
+
 
 void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr)
 {
