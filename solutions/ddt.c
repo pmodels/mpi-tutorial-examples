@@ -79,6 +79,9 @@ int main(int argc, char **argv)
     MPI_Alloc_mem((bx+2)*(by+2)*sizeof(double), MPI_INFO_NULL, &aold); /* 1-wide halo zones! */
     MPI_Alloc_mem((bx+2)*(by+2)*sizeof(double), MPI_INFO_NULL, &anew); /* 1-wide halo zones! */
 
+    memset(aold, 0, (bx+2)*(by+2)*sizeof(double));
+    memset(anew, 0, (bx+2)*(by+2)*sizeof(double));
+
     /* initialize three heat sources */
     init_sources(bx, by, offx, offy, n,
                  nsources, sources, &locnsources, locsources);
