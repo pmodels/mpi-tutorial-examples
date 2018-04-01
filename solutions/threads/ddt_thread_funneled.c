@@ -93,11 +93,6 @@ int main(int argc, char **argv)
     /* initialize three heat sources */
     init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
 
-    /* create north-south datatype */
-    MPI_Datatype north_south_type;
-    MPI_Type_contiguous(bx, MPI_DOUBLE, &north_south_type);     /* Don't do this */
-    MPI_Type_commit(&north_south_type);
-
     /* create east-west datatype */
     MPI_Datatype east_west_type;
     MPI_Type_vector(by, 1, bx + 2, MPI_DOUBLE, &east_west_type);
@@ -114,17 +109,17 @@ int main(int argc, char **argv)
 
         /* exchange data with neighbors */
         MPI_Request reqs[8];
-        MPI_Isend(&aold[ind(1, 1)] /* north */ , 1, north_south_type, north, 9, MPI_COMM_WORLD,
+        MPI_Isend(&aold[ind(1, 1)] /* north */ , bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD,
                   &reqs[0]);
-        MPI_Isend(&aold[ind(1, by)] /* south */ , 1, north_south_type, south, 9, MPI_COMM_WORLD,
+        MPI_Isend(&aold[ind(1, by)] /* south */ , bx, MPI_DOUBLE, south, 9, MPI_COMM_WORLD,
                   &reqs[1]);
         MPI_Isend(&aold[ind(bx, 1)] /* east */ , 1, east_west_type, east, 9, MPI_COMM_WORLD,
                   &reqs[2]);
         MPI_Isend(&aold[ind(1, 1)] /* west */ , 1, east_west_type, west, 9, MPI_COMM_WORLD,
                   &reqs[3]);
-        MPI_Irecv(&aold[ind(1, 0)] /* north */ , 1, north_south_type, north, 9, MPI_COMM_WORLD,
+        MPI_Irecv(&aold[ind(1, 0)] /* north */ , bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD,
                   &reqs[4]);
-        MPI_Irecv(&aold[ind(1, by + 1)] /* south */ , 1, north_south_type, south, 9, MPI_COMM_WORLD,
+        MPI_Irecv(&aold[ind(1, by + 1)] /* south */ , bx, MPI_DOUBLE, south, 9, MPI_COMM_WORLD,
                   &reqs[5]);
         MPI_Irecv(&aold[ind(bx + 1, 1)] /* east */ , 1, east_west_type, east, 9, MPI_COMM_WORLD,
                   &reqs[6]);
@@ -152,7 +147,6 @@ int main(int argc, char **argv)
     MPI_Free_mem(anew);
 
     MPI_Type_free(&east_west_type);
-    MPI_Type_free(&north_south_type);
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);

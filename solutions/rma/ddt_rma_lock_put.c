@@ -98,11 +98,6 @@ int main(int argc, char **argv)
     /* initialize three heat sources */
     init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
 
-    /* create north-south datatype */
-    MPI_Datatype north_south_type;
-    MPI_Type_contiguous(bx, MPI_DOUBLE, &north_south_type);     /* Don't do this */
-    MPI_Type_commit(&north_south_type);
-
     /* create east-west datatype */
     MPI_Datatype east_west_type;
     MPI_Type_vector(by, 1, bx + 2, MPI_DOUBLE, &east_west_type);
@@ -129,11 +124,11 @@ int main(int argc, char **argv)
 
         offset = grid_size * ((iter + 1) % 2);
 
-        MPI_Put(&aold[ind(1, 1)], 1, north_south_type, north,
-                ind(1, by + 1) + offset, 1, north_south_type, win);
+        MPI_Put(&aold[ind(1, 1)], bx, MPI_DOUBLE, north,
+                ind(1, by + 1) + offset, bx, MPI_DOUBLE, win);
 
-        MPI_Put(&aold[ind(1, by)], 1, north_south_type, south,
-                ind(1, 0) + offset, 1, north_south_type, win);
+        MPI_Put(&aold[ind(1, by)], bx, MPI_DOUBLE, south,
+                ind(1, 0) + offset, bx, MPI_DOUBLE, win);
 
         MPI_Put(&aold[ind(bx, 1)], 1, east_west_type, east,
                 ind(0, 1) + offset, 1, east_west_type, win);
@@ -166,7 +161,6 @@ int main(int argc, char **argv)
 
     MPI_Win_free(&win);
     MPI_Type_free(&east_west_type);
-    MPI_Type_free(&north_south_type);
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
