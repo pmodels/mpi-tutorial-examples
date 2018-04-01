@@ -1,0 +1,8 @@
+mpiexec -n 4 ./stencil_mpi_nonblocking 100 10 1000 2 2
+mpiexec -n 4 ./stencil_mpi_ddt 100 10 1000 2 2
+mpiexec -n 4 ./stencil_mpi_ddt_threads 100 10 1000 2 2
+mpiexec -n 4 ./stencil_mpi_ddt_funneled 100 10 1000 2 2
+mpiexec -n 4 ./stencil_mpi_ddt_multiple 100 10 1000 2 2
+mpiexec -n 4 ./stencil_mpi_shmem 100 10 1000 2 2
+mpiexec -n 4 ./stencil_mpi_carttopo 100 10 1000 2 2
+mpiexec -n 4 ./stencil_mpi_carttopo_neighcolls 100 10 1000 2 2
