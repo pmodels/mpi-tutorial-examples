@@ -2,7 +2,7 @@ MPICXX=mpicxx
 MPICC=mpicc
 OBJS=../printarr_par.o
 CFLAGS= -g -Wall -I../
-BINS=ddt
+BINS=ddt_thread_funneled ddt_thread_multiple
 
 all: $(BINS)
 

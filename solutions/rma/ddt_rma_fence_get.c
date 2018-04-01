@@ -119,8 +119,7 @@ int main(int argc, char **argv)
 
         offset = grid_size * ((iter + 1) % 2);
 
-        MPI_Get(&aold[ind(1, 0)], bx, MPI_DOUBLE, north,
-                ind(1, by) + offset, bx, MPI_DOUBLE, win);
+        MPI_Get(&aold[ind(1, 0)], bx, MPI_DOUBLE, north, ind(1, by) + offset, bx, MPI_DOUBLE, win);
 
         MPI_Get(&aold[ind(1, by + 1)], bx, MPI_DOUBLE, south,
                 ind(1, 1) + offset, bx, MPI_DOUBLE, win);
@@ -229,7 +228,7 @@ void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr)
         for (j = 1; j < by + 1; ++j) {
             anew[ind(i, j)] =
                 anew[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
-                                 g        aold[ind(i, j - 1)] + aold[ind(i, j + 1)]) / 4.0 / 2.0;
+                                         aold[ind(i, j - 1)] + aold[ind(i, j + 1)]) / 4.0 / 2.0;
             heat += anew[ind(i, j)];
         }
     }

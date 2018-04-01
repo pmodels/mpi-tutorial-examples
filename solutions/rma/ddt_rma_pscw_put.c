@@ -138,10 +138,9 @@ int main(int argc, char **argv)
         offset = grid_size * ((iter + 1) % 2);
 
         MPI_Put(&aold[ind(1, 1)], bx, MPI_DOUBLE, north,
-                ind(1, by + 1) + offset, 1, MPI_DOUBLE, win);
+                ind(1, by + 1) + offset, bx, MPI_DOUBLE, win);
 
-        MPI_Put(&aold[ind(1, by)], bx, MPI_DOUBLE, south,
-                ind(1, 0) + offset, bx, MPI_DOUBLE, win);
+        MPI_Put(&aold[ind(1, by)], bx, MPI_DOUBLE, south, ind(1, 0) + offset, bx, MPI_DOUBLE, win);
 
         MPI_Put(&aold[ind(bx, 1)], 1, east_west_type, east,
                 ind(0, 1) + offset, 1, east_west_type, win);
