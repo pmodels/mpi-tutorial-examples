@@ -111,13 +111,12 @@ int main(int argc, char **argv)
         int offset;
 
         /* refresh heat sources */
-        MPI_Win_fence(MPI_MODE_NOPRECEDE, win);
         for (i = 0; i < locnsources; ++i) {
             aold[ind(locsources[i][0],locsources[i][1])] += energy; /* heat source */
         }
 
         /* exchange data with neighbors */
-        MPI_Win_fence(0, win);
+        MPI_Win_fence(0, win); /* synchronize private and public windows */
 
         offset = grid_size * ((iter + 1) % 2);
 
@@ -133,21 +132,18 @@ int main(int argc, char **argv)
         MPI_Put(&aold[ind(1,1)], 1, east_west_type, west,
                 ind(bx+1,1)+offset, 1, east_west_type, win);
 
-        MPI_Win_fence(0, win);
+        MPI_Win_fence(0, win); /* synchronize private and public windows */
 
         /* update grid points */
         update_grid(bx, by, aold, anew, &heat);
-        MPI_Win_fence(MPI_MODE_NOSUCCEED, win);
 
         /* swap working arrays */
         tmp = anew; anew = aold; aold = tmp;
 
         /* optional - print image */
         if (iter == niters-1) {
-            MPI_Win_fence(MPI_MODE_NOPRECEDE, win);
             printarr_par(iter, anew, n, px, py, rx, ry,
                          bx, by, offx, offy, MPI_COMM_WORLD);
-            MPI_Win_fence(MPI_MODE_NOSUCCEED, win);
         }
     }
 
