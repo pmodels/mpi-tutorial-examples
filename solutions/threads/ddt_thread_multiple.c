@@ -23,6 +23,7 @@ int main(int argc, char **argv)
 {
     int rank, size, provided;
     int n, energy, niters, px, py;
+    MPI_Comm *world_comms = NULL;
 
     int rx, ry;
     int north, south, west, east;
@@ -84,16 +85,23 @@ int main(int argc, char **argv)
     nthreads = omp_get_max_threads();
     Thx = bx / nthreads;
 
+    /* duplicate as many comm_world communicators as number of threads */
+    world_comms = malloc(sizeof(MPI_Comm) * nthreads);
+    for (i = 0; i < nthreads; i++)
+        MPI_Comm_dup(MPI_COMM_WORLD, &world_comms[i]);
 
     /* allocate working arrays & communication buffers */
     MPI_Alloc_mem((bx+2)*(by+2)*sizeof(double), MPI_INFO_NULL, &aold); /* 1-wide halo zones! */
     MPI_Alloc_mem((bx+2)*(by+2)*sizeof(double), MPI_INFO_NULL, &anew); /* 1-wide halo zones! */
 
+    memset(aold, 0, (bx+2)*(by+2)*sizeof(double));
+    memset(anew, 0, (bx+2)*(by+2)*sizeof(double));
+
     /* initialize three heat sources */
     init_sources(bx, by, offx, offy, n,
                  nsources, sources, &locnsources, locsources);
 
-    /* create east-west type */
+    /* create east-west datatype */
     MPI_Datatype east_west_type;
     MPI_Type_vector(by,1,bx+2,MPI_DOUBLE, &east_west_type);
     MPI_Type_commit(&east_west_type);
@@ -124,32 +132,37 @@ int main(int argc, char **argv)
 	MPI_Request west_reqs[2];
 
         /* exchange data with neighbors */
+
+        /* each thread uses a dedicated communicator and tag
+         * for north-south exchange */
 	if (south >= 0) {
 	  MPI_Isend(&aold[ind(xstart,by)] /* south */, xrange, MPI_DOUBLE,
-		    south, thread_id, MPI_COMM_WORLD, &south_reqs[0]);
+		    south, thread_id, world_comms[thread_id], &south_reqs[0]);
 	  MPI_Irecv(&aold[ind(xstart,by+1)] /* south */, xrange, MPI_DOUBLE,
-		    south, thread_id, MPI_COMM_WORLD, &south_reqs[1]);
+		    south, thread_id, world_comms[thread_id], &south_reqs[1]);
 	  MPI_Waitall(2, south_reqs, MPI_STATUSES_IGNORE);
 	}
 	if (north >= 0) {
 	  MPI_Isend(&aold[ind(xstart,1)] /* north */, xrange, MPI_DOUBLE,
-		    north, thread_id, MPI_COMM_WORLD, &north_reqs[0]);
+		    north, thread_id, world_comms[thread_id], &north_reqs[0]);
 	  MPI_Irecv(&aold[ind(xstart,0)] /* north */, xrange, MPI_DOUBLE,
-		    north, thread_id, MPI_COMM_WORLD, &north_reqs[1]);
+		    north, thread_id, world_comms[thread_id], &north_reqs[1]);
 	  MPI_Waitall(2, north_reqs, MPI_STATUSES_IGNORE);
 	}
+    /* use tag 0 and world_comms[0] for east-west exchange,
+     * because the two sides are assigned to different thread id */
 	if ((west >= 0) && (xstart == 1)) {
 	  MPI_Isend(&aold[ind(1,1)] /* west */, 1, east_west_type,
-		    west, thread_id, MPI_COMM_WORLD, &west_reqs[0]);
+		    west, 0, world_comms[0], &west_reqs[0]);
 	  MPI_Irecv(&aold[ind(0,1)] /* east */, 1, east_west_type,
-		    west, thread_id, MPI_COMM_WORLD, &west_reqs[1]);
+		    west, 0, world_comms[0], &west_reqs[1]);
 	  MPI_Waitall(2, west_reqs, MPI_STATUSES_IGNORE);
 	}
 	if ((east >= 0) && (xend == bx + 1)) {
 	  MPI_Isend(&aold[ind(bx,1)] /* east */, 1, east_west_type,
-		    east, thread_id, MPI_COMM_WORLD, &east_reqs[0]);
+		    east, 0, world_comms[0], &east_reqs[0]);
 	  MPI_Irecv(&aold[ind(bx+1,1)] /* west */, 1, east_west_type,
-		    east, thread_id, MPI_COMM_WORLD, &east_reqs[1]);
+		    east, 0, world_comms[0], &east_reqs[1]);
 	  MPI_Waitall(2, east_reqs, MPI_STATUSES_IGNORE);
 	}
 
@@ -162,7 +175,6 @@ int main(int argc, char **argv)
 	}
 
       } /* end parallel region */
-
 
       /* swap working arrays */
       tmp = anew; anew = aold; aold = tmp;
@@ -185,7 +197,12 @@ int main(int argc, char **argv)
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     if (!rank) printf("[%i] last heat: %f time: %f\n", rank, rheat, t2-t1);
 
+    for (i = 0; i < nthreads; i++)
+        MPI_Comm_free(&world_comms[i]);
+    free(world_comms);
+
     MPI_Finalize();
+    return 0;
 }
 
 void setup(int rank, int proc, int argc, char **argv,
