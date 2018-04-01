@@ -115,7 +115,10 @@ int main(int argc, char **argv)
         for (i = 0; i < locnsources; ++i) {
             aold[ind(locsources[i][0],locsources[i][1])] += energy; /* heat source */
         }
-        MPI_Win_unlock(rank, win);
+        MPI_Win_unlock(rank, win); /* update to private window becomes visible
+                                    * in public window */
+
+        MPI_Barrier(MPI_COMM_WORLD); /* ensure neighbors have refreshed */
 
         /* exchange data with neighbors */
         MPI_Win_lock_all(0, win);
@@ -134,11 +137,14 @@ int main(int argc, char **argv)
         MPI_Put(&aold[ind(1,1)], 1, east_west_type, west,
                 ind(bx+1,1)+offset, 1, east_west_type, win);
 
-        MPI_Win_unlock_all(win);
-        MPI_Barrier(MPI_COMM_WORLD); /* ensure neighbors have also completed data exchange */
+        MPI_Win_unlock_all(win); /* remote update to target public window is completed */
+
+        MPI_Barrier(MPI_COMM_WORLD); /* ensure neighbors have completed data exchange */
 
         /* update grid points */
-        MPI_Win_lock(MPI_LOCK_EXCLUSIVE, rank, 0, win); /* lock myself for local load/store*/
+        MPI_Win_lock(MPI_LOCK_EXCLUSIVE, rank, 0, win); /* lock myself for local load/store.
+                                                         * remote update to public window becomes visible
+                                                         * in private window */
         update_grid(bx, by, aold, anew, &heat);
         MPI_Win_unlock(rank, win);
 
@@ -147,10 +153,8 @@ int main(int argc, char **argv)
 
         /* optional - print image */
         if (iter == niters-1) {
-            MPI_Win_lock(MPI_LOCK_EXCLUSIVE, rank, 0, win); /* lock myself for local load/store*/
             printarr_par(iter, anew, n, px, py, rx, ry,
                          bx, by, offx, offy, MPI_COMM_WORLD);
-            MPI_Win_unlock(rank, win);
         }
     }
 
