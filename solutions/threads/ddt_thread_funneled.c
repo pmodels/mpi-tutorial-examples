@@ -81,16 +81,19 @@ int main(int argc, char **argv)
     MPI_Alloc_mem((bx+2)*(by+2)*sizeof(double), MPI_INFO_NULL, &aold); /* 1-wide halo zones! */
     MPI_Alloc_mem((bx+2)*(by+2)*sizeof(double), MPI_INFO_NULL, &anew); /* 1-wide halo zones! */
 
+    memset(aold, 0, (bx+2)*(by+2)*sizeof(double));
+    memset(anew, 0, (bx+2)*(by+2)*sizeof(double));
+
     /* initialize three heat sources */
     init_sources(bx, by, offx, offy, n,
                  nsources, sources, &locnsources, locsources);
 
     /* create north-south datatype */
     MPI_Datatype north_south_type;
-    MPI_Type_contiguous(bx, MPI_DOUBLE, &north_south_type);
+    MPI_Type_contiguous(bx, MPI_DOUBLE, &north_south_type); /* Don't do this */
     MPI_Type_commit(&north_south_type);
 
-    /* create east-west type */
+    /* create east-west datatype */
     MPI_Datatype east_west_type;
     MPI_Type_vector(by,1,bx+2,MPI_DOUBLE, &east_west_type);
     MPI_Type_commit(&east_west_type);
@@ -112,8 +115,8 @@ int main(int argc, char **argv)
         MPI_Isend(&aold[ind(1,1)] /* west */, 1, east_west_type, west, 9, MPI_COMM_WORLD, &reqs[3]);
         MPI_Irecv(&aold[ind(1,0)] /* north */, 1, north_south_type, north, 9, MPI_COMM_WORLD, &reqs[4]);
         MPI_Irecv(&aold[ind(1,by+1)] /* south */, 1, north_south_type, south, 9, MPI_COMM_WORLD, &reqs[5]);
-        MPI_Irecv(&aold[ind(bx+1,1)] /* west */, 1, east_west_type, east, 9, MPI_COMM_WORLD, &reqs[6]);
-        MPI_Irecv(&aold[ind(0,1)] /* east */, 1, east_west_type, west, 9, MPI_COMM_WORLD, &reqs[7]);
+        MPI_Irecv(&aold[ind(bx+1,1)] /* east */, 1, east_west_type, east, 9, MPI_COMM_WORLD, &reqs[6]);
+        MPI_Irecv(&aold[ind(0,1)] /* west */, 1, east_west_type, west, 9, MPI_COMM_WORLD, &reqs[7]);
         MPI_Waitall(8, reqs, MPI_STATUS_IGNORE);
 
         /* update grid points */
@@ -142,6 +145,7 @@ int main(int argc, char **argv)
     if (!rank) printf("[%i] last heat: %f time: %f\n", rank, rheat, t2-t1);
 
     MPI_Finalize();
+    return 0;
 }
 
 void setup(int rank, int proc, int argc, char **argv,
