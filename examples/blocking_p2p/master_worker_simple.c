@@ -22,11 +22,10 @@ int main(int argc, char **argv)
         int task_id = rank / 3;
         int data_count;
 
-        sleep(1);  /* compute data */
-        data_count = rand() % 100;  /* figure out how much data to send */
+        sleep(1);       /* compute data */
+        data_count = rand() % 100;      /* figure out how much data to send */
         MPI_Send(data, data_count, MPI_INT, size - 1, task_id, MPI_COMM_WORLD);
-    }
-    else {
+    } else {
         /* master process */
         for (i = 0; i < size - 1; i++) {
             MPI_Recv(data, 100, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);

@@ -16,8 +16,7 @@
 #define RAND_RANGE (10)
 
 void setup(int rank, int nprocs, int argc, char **argv,
-           int *mat_dim_ptr, int *blk_dim_ptr, int *px_ptr, int *py_ptr,
-           int *final_flag);
+           int *mat_dim_ptr, int *blk_dim_ptr, int *px_ptr, int *py_ptr, int *final_flag);
 void init_mats(int mat_dim, double *win_mem,
                double **mat_a_ptr, double **mat_b_ptr, double **mat_c_ptr);
 void dgemm(double *local_a, double *local_b, double *local_c, int blk_dim);
@@ -50,8 +49,7 @@ int main(int argc, char **argv)
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
     /* argument checking and setting */
-    setup(rank, nprocs, argc, argv, &mat_dim, &blk_dim,
-          &px, &py, &final_flag);
+    setup(rank, nprocs, argc, argv, &mat_dim, &blk_dim, &px, &py, &final_flag);
     if (final_flag == 1) {
         MPI_Finalize();
         exit(0);
@@ -70,19 +68,17 @@ int main(int argc, char **argv)
 
     if (!rank) {
         /* create RMA window */
-        MPI_Win_allocate(3*mat_dim*mat_dim*sizeof(double), sizeof(double),
+        MPI_Win_allocate(3 * mat_dim * mat_dim * sizeof(double), sizeof(double),
                          MPI_INFO_NULL, MPI_COMM_WORLD, &win_mem, &win);
 
         /* initialize matrices */
         init_mats(mat_dim, win_mem, &mat_a, &mat_b, &mat_c);
-    }
-    else {
-        MPI_Win_allocate(0, sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD,
-                         &win_mem, &win);
+    } else {
+        MPI_Win_allocate(0, sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &win_mem, &win);
     }
 
     /* allocate local buffer */
-    MPI_Alloc_mem(3*blk_dim*blk_dim*sizeof(double), MPI_INFO_NULL, &local_a);
+    MPI_Alloc_mem(3 * blk_dim * blk_dim * sizeof(double), MPI_INFO_NULL, &local_a);
     local_b = local_a + blk_dim * blk_dim;
     local_c = local_b + blk_dim * blk_dim;
 
@@ -108,8 +104,7 @@ int main(int argc, char **argv)
 
             /* get block from mat_a */
             offset_a = global_i * blk_dim * mat_dim + global_j * blk_dim;
-            MPI_Get(local_a, blk_dim*blk_dim, MPI_DOUBLE,
-                    0, disp_a+offset_a, 1, blk_dtp, win);
+            MPI_Get(local_a, blk_dim * blk_dim, MPI_DOUBLE, 0, disp_a + offset_a, 1, blk_dtp, win);
 
             MPI_Win_flush(0, win);
 
@@ -117,8 +112,8 @@ int main(int argc, char **argv)
 
                 /* get block from mat_b */
                 offset_b = global_j * blk_dim * mat_dim + k * blk_dim;
-                MPI_Get(local_b, blk_dim*blk_dim, MPI_DOUBLE,
-                        0, disp_b+offset_b, 1, blk_dtp, win);
+                MPI_Get(local_b, blk_dim * blk_dim, MPI_DOUBLE,
+                        0, disp_b + offset_b, 1, blk_dtp, win);
 
                 MPI_Win_flush(0, win);
 
@@ -127,8 +122,8 @@ int main(int argc, char **argv)
 
                 /* accumulate block to mat_c */
                 offset_c = global_i * blk_dim * mat_dim + k * blk_dim;
-                MPI_Accumulate(local_c, blk_dim*blk_dim, MPI_DOUBLE,
-                               0, disp_c+offset_c, 1, blk_dtp, MPI_SUM, win);
+                MPI_Accumulate(local_c, blk_dim * blk_dim, MPI_DOUBLE,
+                               0, disp_c + offset_c, 1, blk_dtp, MPI_SUM, win);
 
                 MPI_Win_flush(0, win);
             }
@@ -148,7 +143,7 @@ int main(int argc, char **argv)
         print_mat(mat_b, mat_dim);
         print_mat(mat_c, mat_dim);
 
-        printf("[%i] time: %f\n", rank, t2-t1);
+        printf("[%i] time: %f\n", rank, t2 - t1);
     }
 
     MPI_Type_free(&blk_dtp);
@@ -158,23 +153,23 @@ int main(int argc, char **argv)
 }
 
 void setup(int rank, int nprocs, int argc, char **argv,
-           int *mat_dim_ptr, int *blk_dim_ptr, int *px_ptr, int *py_ptr,
-           int *final_flag)
+           int *mat_dim_ptr, int *blk_dim_ptr, int *px_ptr, int *py_ptr, int *final_flag)
 {
     int mat_dim, blk_dim, px, py;
 
     (*final_flag) = 0;
 
     if (argc < 5) {
-        if (!rank) printf("usage: ga_mpi <m> <b> <px> <py>\n");
+        if (!rank)
+            printf("usage: ga_mpi <m> <b> <px> <py>\n");
         (*final_flag) = 1;
         return;
     }
 
     mat_dim = atoi(argv[1]);    /* matrix dimension */
     blk_dim = atoi(argv[2]);    /* block dimension */
-    px = atoi(argv[3]);         /* 1st dim processes */
-    py = atoi(argv[4]);         /* 2st dim processes */
+    px = atoi(argv[3]); /* 1st dim processes */
+    py = atoi(argv[4]); /* 2st dim processes */
 
     if (px * py != nprocs)
         MPI_Abort(MPI_COMM_WORLD, 1);
@@ -205,9 +200,9 @@ void init_mats(int mat_dim, double *win_mem,
 
     for (j = 0; j < mat_dim; j++) {
         for (i = 0; i < mat_dim; i++) {
-            mat_a[j+i*mat_dim] = (double) rand() / (RAND_MAX / RAND_RANGE + 1);
-            mat_b[j+i*mat_dim] = (double) rand() / (RAND_MAX / RAND_RANGE + 1);
-            mat_c[j+i*mat_dim] = (double) 0.0;
+            mat_a[j + i * mat_dim] = (double) rand() / (RAND_MAX / RAND_RANGE + 1);
+            mat_b[j + i * mat_dim] = (double) rand() / (RAND_MAX / RAND_RANGE + 1);
+            mat_c[j + i * mat_dim] = (double) 0.0;
         }
     }
 
@@ -220,12 +215,12 @@ void dgemm(double *local_a, double *local_b, double *local_c, int blk_dim)
 {
     int i, j, k;
 
-    memset(local_c, 0, blk_dim*blk_dim*sizeof(double));
+    memset(local_c, 0, blk_dim * blk_dim * sizeof(double));
 
     for (j = 0; j < blk_dim; j++) {
         for (i = 0; i < blk_dim; i++) {
             for (k = 0; k < blk_dim; k++)
-                local_c[j+i*blk_dim] += local_a[k+i*blk_dim] * local_b[j+k*blk_dim];
+                local_c[j + i * blk_dim] += local_a[k + i * blk_dim] * local_b[j + k * blk_dim];
         }
     }
 }
@@ -235,7 +230,7 @@ void print_mat(double *mat, int mat_dim)
     int i, j;
     for (i = 0; i < mat_dim; i++) {
         for (j = 0; j < mat_dim; j++) {
-            printf("%.4f ", mat[j+i*mat_dim]);
+            printf("%.4f ", mat[j + i * mat_dim]);
         }
         printf("\n");
     }
@@ -253,8 +248,8 @@ void check_mats(double *mat_a, double *mat_b, double *mat_c, int mat_dim)
         for (i = 0; i < mat_dim; i++) {
             temp_c = 0.0;
             for (k = 0; k < mat_dim; k++)
-                temp_c += mat_a[k+i*mat_dim] * mat_b[j+k*mat_dim];
-            diff = mat_c[j+i*mat_dim] - temp_c;
+                temp_c += mat_a[k + i * mat_dim] * mat_b[j + k * mat_dim];
+            diff = mat_c[j + i * mat_dim] - temp_c;
             if (fabs(diff) > 0.00001) {
                 bogus = 1;
                 if (fabs(diff) > fabs(max_diff))
