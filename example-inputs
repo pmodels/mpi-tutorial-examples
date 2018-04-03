@@ -1,7 +1,0 @@
-mpiexec -n 4 ./ddt 100 10 1000 2 2
-mpiexec -n 4 ./ddt_rma_fence_put 100 10 1000 2 2
-mpiexec -n 4 ./ddt_rma_fence_get 100 10 1000 2 2
-mpiexec -n 4 ./ddt_rma_pscw_put 100 10 1000 2 2
-mpiexec -n 4 ./ddt_rma_lock_put 100 10 1000 2 2
-mpiexec -n 4 ./ddt_thread_funneled 100 10 1000 2 2
-mpiexec -n 4 ./ddt_thread_multiple 100 10 1000 2 2

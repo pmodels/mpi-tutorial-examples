@@ -1,15 +1,15 @@
 MPICXX=mpicxx
 MPICC=mpicc
-OBJS=../printarr_par.o
-CFLAGS= -g -Wall -I../
-BINS=ddt_rma_fence_get ddt_rma_fence_put ddt_rma_lock_put ddt_rma_pscw_put
+OBJS=$(PWD)/../../common/stencil/printarr_par.o
+CFLAGS= -g -Wall -I$(PWD)/../../common/stencil
+BINS=stencil
 
 all: $(BINS)
 
 %.o: %.c
 	$(MPICC) $(CFLAGS) $< -c -lm -o $@
 
-ddt_rma_%: ddt_rma_%.c $(OBJS)
+stencil: stencil.c $(OBJS)
 	$(MPICC) $(CFLAGS) -o $@ $< $(OBJS) -lm
 
 clean:

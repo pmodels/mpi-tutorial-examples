@@ -1,7 +1,7 @@
 MPICXX=mpicxx
 MPICC=mpicc
-OBJS=../printarr_par.o
-CFLAGS= -g -Wall -I../
+OBJS=../../common/stencil/printarr_par.o
+CFLAGS= -g -Wall -I../../common/stencil
 BINS=ddt_thread_funneled ddt_thread_multiple
 
 all: $(BINS)
