@@ -4,7 +4,6 @@
 int main(int argc, char **argv)
 {
     int rank, size, target, source;
-    int i, flag;
     int sendbuf, recvbuf;
     MPI_Request reqs[2];
 
