@@ -1,6 +1,6 @@
 CC=mpicc
 CFLAGS= -O0 -g -Wall
-BINS=simple
+BINS=simple deadlock split
 
 all: $(BINS)
 
