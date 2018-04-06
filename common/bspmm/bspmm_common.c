@@ -91,6 +91,20 @@ int is_zero(double *local_mat)
     return 1;
 }
 
+int is_zero_global(double *global_mat, int mat_dim, int global_i, int global_j)
+{
+    int i, j;
+    int offset = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
+
+    for (i = 0; i < BLK_DIM; i++) {
+        for (j = 0; j < BLK_DIM; j++) {
+            if (global_mat[offset + j + i * mat_dim] != 0.0)
+                return 0;
+        }
+    }
+    return 1;
+}
+
 void check_mats(double *mat_a, double *mat_b, double *mat_c, int mat_dim)
 {
     int i, j, k, r;
