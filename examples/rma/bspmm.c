@@ -7,10 +7,6 @@
 
 #define RAND_RANGE (10)
 
-#define BLK_DIM 128
-#define SPARSITY_A 0.4
-#define SPARSITY_B 0.4
-
 #include "../../common/bspmm/bspmm.h"
 
 int main(int argc, char **argv)
@@ -18,7 +14,7 @@ int main(int argc, char **argv)
     int rank, nprocs;
     int mat_dim, blk_num;
     int work_id, work_id_len;
-    double *mat_a, *mat_b, *mat_c;
+    double *mat_a = NULL, *mat_b = NULL, *mat_c = NULL;
     double *local_a, *local_b, *local_c;
     MPI_Aint disp_a, disp_b, disp_c;
     MPI_Aint offset_a, offset_b, offset_c;
@@ -76,46 +72,48 @@ int main(int argc, char **argv)
      * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
      *
      * | C11 ... C1n |   | A11 ... A1n |    | B11 ... B1n |
-     * | . .     .   |   | . .     .   |    | . .     .   |
-     * | .   .   .   | = | .   .   .   | *  | .   .   .   |
-     * | .     . .   |   | .     . .   |    | .     . .   |
+     * |  . .     .  |   |  . .     .  |    |  . .     .  |
+     * |  .  Cij  .  | = |  .  Aik  .  | *  |  .  Bkj  .  |
+     * |  .     . .  |   |  .     . .  |    |  .     . .  |
      * | Cn1 ... Cnn |   | An1 ... Ann |    | Bn1 ... Bnn |
      *
-     * Obviously, there are n^3 parallel computations of Cij += Aik * Bkj
-     * Work id (0 <= id < n^3) is associated with each computation as follows
-     *   (i, j, k) = (id / (n ^ 2), (id / n) % n, id % n)
+     * bspmm parallelizes i and k; there are n^2 parallel computations of Cij += Aik * Bkj
+     * Work id (0 <= id < n^2) is associated with each computation as follows
+     *   (i, k) = (id / n, id % n)
      * Note Cij must be updated atomically
      */
 
-    work_id_len = blk_num * blk_num * blk_num;
+    work_id_len = blk_num * blk_num;
 
     MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win);
 
     for (work_id = rank; work_id < work_id_len; work_id += nprocs) {
-        int global_i = work_id / (blk_num * blk_num);
-        int global_j = (work_id / blk_num) % blk_num;
+        int global_i = work_id / blk_num;
         int global_k = work_id % blk_num;
+        int global_j;
         /* get block from mat_a */
         offset_a = global_i * BLK_DIM * mat_dim + global_k * BLK_DIM;
         MPI_Get(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, disp_a + offset_a, 1, blk_dtp, win);
         MPI_Win_flush(0, win);
         if (is_zero(local_a))
             continue;
-        /* get block from mat_b */
-        offset_b = global_k * BLK_DIM * mat_dim + global_j * BLK_DIM;
-        MPI_Get(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, disp_b + offset_b, 1, blk_dtp, win);
-        MPI_Win_flush(0, win);
-        if (is_zero(local_b))
-            continue;
-        /* compute only if both local_a and local_b are nonzero */
-        dgemm(local_a, local_b, local_c);
+        for (global_j = 0; global_j < blk_num; global_j++) {
+            /* get block from mat_b */
+            offset_b = global_k * BLK_DIM * mat_dim + global_j * BLK_DIM;
+            MPI_Get(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, disp_b + offset_b, 1, blk_dtp, win);
+            MPI_Win_flush(0, win);
+            if (is_zero(local_b))
+                continue;
+            /* compute only if both local_a and local_b are nonzero */
+            dgemm(local_a, local_b, local_c);
 
-        /* accumulate block to mat_c */
-        offset_c = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
-        MPI_Accumulate(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, disp_c + offset_c, 1, blk_dtp,
-                       MPI_SUM, win);
+            /* accumulate block to mat_c */
+            offset_c = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
+            MPI_Accumulate(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, disp_c + offset_c, 1, blk_dtp,
+                           MPI_SUM, win);
 
-        MPI_Win_flush(0, win);
+            MPI_Win_flush(0, win);
+        }
     }
 
     MPI_Win_unlock(0, win);

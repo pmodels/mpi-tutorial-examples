@@ -10,6 +10,10 @@
 #include <sys/types.h>
 #include <time.h>
 
+#define BLK_DIM 128
+#define SPARSITY_A 0.8
+#define SPARSITY_B 0.8
+
 static int setup(int rank, int nprocs, int argc, char **argv, int *mat_dim_ptr)
 {
     int mat_dim;
