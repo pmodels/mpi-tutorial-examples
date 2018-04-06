@@ -5,9 +5,7 @@
  *
  */
 
-#define RAND_RANGE (10)
-
-#include "../../common/bspmm/bspmm.h"
+#include "bspmm.h"
 
 int main(int argc, char **argv)
 {
