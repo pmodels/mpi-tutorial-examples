@@ -6,9 +6,9 @@
 
 #define NUM_ELEMENTS 50
 
-static int compare_int(const void* a, const void* b)
+static int compare_int(const void *a, const void *b)
 {
-	return ( *(int*)a - *(int*)b );
+    return (*(int *) a - *(int *) b);
 }
 
 /* Merge sorted arrays a[] and b[] into a[].
@@ -45,54 +45,57 @@ static void merge(int *a, int numel_a, int *b, int numel_b)
 int main(int argc, char **argv)
 {
     int rank, size, data[NUM_ELEMENTS];
-	MPI_Init(&argc, &argv);
+    MPI_Init(&argc, &argv);
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-	int chunk_size = NUM_ELEMENTS / size; // assuming size is a factor of NUM_ELEMENTS
+    int chunk_size = NUM_ELEMENTS / size;       /* assuming size is a factor of NUM_ELEMENTS */
     srand(time(NULL));
 
     if (rank == 0) {
-		/* prepare data and display it */
-		int i;
-		printf("Unsorted:\t");
-		for (i = 0; i < NUM_ELEMENTS; i++) {
-			data[i] = rand() % NUM_ELEMENTS;
-			printf("%d ", data[i]);
-		}
-		printf("\n");
+        /* prepare data and display it */
+        int i;
+        printf("Unsorted:\t");
+        for (i = 0; i < NUM_ELEMENTS; i++) {
+            data[i] = rand() % NUM_ELEMENTS;
+            printf("%d ", data[i]);
+        }
+        printf("\n");
 
-		/* send a chunk of the data to each of the other ranks */
-		int target;
-		for (target = 1; target < size; target++)
-			MPI_Send(&data[target*chunk_size], chunk_size, MPI_INT, target, 0, MPI_COMM_WORLD);
-		/* sort the first chunk of the data */
-		qsort(data, chunk_size, sizeof(int), compare_int);
-		/* receive sorted latter chunks of the data */
-		for (target = 1; target < size; target++)
-			MPI_Recv(&data[target*chunk_size], chunk_size, MPI_INT, target, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		/* merge all the sorted chunks */
-		int chunk_i;
-		int sorted_so_far = chunk_size;
-		for (chunk_i = 1; chunk_i < size; chunk_i++) {
-			merge(data, sorted_so_far, &data[chunk_i*chunk_size], chunk_size);
-			sorted_so_far += chunk_size;
-		}
-		
-		/* display sorted array */
-		printf("Sorted:\t\t");
-		for (i = 0; i < NUM_ELEMENTS; i++)
-			printf("%d ", data[i]);
-		printf("\n");
-	}
-	else {
-		/* receive a chunk of the data */
-		MPI_Recv(data, chunk_size, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-		/* sort the received data */
-		qsort(data, chunk_size, sizeof(int), compare_int);
-		/* send back the sorted data */
-		MPI_Send(data, chunk_size, MPI_INT, 0, 0, MPI_COMM_WORLD);
+        /* send a chunk of the data to each of the other ranks */
+        int target;
+        for (target = 1; target < size; target++)
+            MPI_Send(&data[target * chunk_size], chunk_size, MPI_INT, target, 0, MPI_COMM_WORLD);
+        /* sort the first chunk of the data */
+        qsort(data, chunk_size, sizeof(int), compare_int);
+
+        /* receive sorted latter chunks of the data */
+        for (target = 1; target < size; target++)
+            MPI_Recv(&data[target * chunk_size], chunk_size, MPI_INT, target, 0, MPI_COMM_WORLD,
+                     MPI_STATUS_IGNORE);
+
+        /* merge all the sorted chunks */
+        int chunk_i;
+        int sorted_so_far = chunk_size;
+        for (chunk_i = 1; chunk_i < size; chunk_i++) {
+            merge(data, sorted_so_far, &data[chunk_i * chunk_size], chunk_size);
+            sorted_so_far += chunk_size;
+        }
+
+        /* display sorted array */
+        printf("Sorted:\t\t");
+        for (i = 0; i < NUM_ELEMENTS; i++)
+            printf("%d ", data[i]);
+        printf("\n");
+    } else {
+        /* receive a chunk of the data */
+        MPI_Recv(data, chunk_size, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        /* sort the received data */
+        qsort(data, chunk_size, sizeof(int), compare_int);
+
+        /* send back the sorted data */
+        MPI_Send(data, chunk_size, MPI_INT, 0, 0, MPI_COMM_WORLD);
     }
 
     MPI_Finalize();

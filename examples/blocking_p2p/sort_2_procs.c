@@ -65,9 +65,11 @@ int main(int argc, char **argv)
         MPI_Send(&data[NUM_ELEMENTS / 2], NUM_ELEMENTS / 2, MPI_INT, 1, 0, MPI_COMM_WORLD);
         /* sort the first half of the data */
         qsort(data, NUM_ELEMENTS / 2, sizeof(int), compare_int);
+
         /* receive sorted latter half of the data */
         MPI_Recv(&data[NUM_ELEMENTS / 2], NUM_ELEMENTS / 2, MPI_INT, 1, 0, MPI_COMM_WORLD,
                  MPI_STATUS_IGNORE);
+
         /* merge the two sorted halves (using sort on the whole array) */
         merge(data, NUM_ELEMENTS / 2, &data[NUM_ELEMENTS / 2], NUM_ELEMENTS / 2);
 
@@ -81,6 +83,7 @@ int main(int argc, char **argv)
         MPI_Recv(data, NUM_ELEMENTS / 2, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         /* sort the received data */
         qsort(data, NUM_ELEMENTS / 2, sizeof(int), compare_int);
+
         /* send back the sorted data */
         MPI_Send(data, NUM_ELEMENTS / 2, MPI_INT, 0, 0, MPI_COMM_WORLD);
     }
