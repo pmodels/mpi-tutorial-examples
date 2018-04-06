@@ -1,10 +1,5 @@
 #include "bspmm.h"
 
-void add_local_to_global(double *global_mat, double *local_mat, int mat_dim, int global_i,
-                         int global_j);
-void copy_global_to_local(double *local_mat, double *global_mat, int mat_dim, int global_i,
-                          int global_j);
-
 int main(int argc, char **argv)
 {
     int rank, nprocs;
@@ -25,13 +20,17 @@ int main(int argc, char **argv)
         MPI_Finalize();
         exit(0);
     }
+    if (nprocs == 1) {
+        printf("nprocs must be more than 1.\n");
+        MPI_Finalize();
+        exit(0);
+    }
 
     /* number of blocks in one dimension */
     blk_num = mat_dim / BLK_DIM;
 
-    /* allocate memory for entire matrices */
+    /* initialize matrices */
     if (!rank) {
-        /* initialize matrices */
         MPI_Alloc_mem(4 * mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mat_a);
         init_mats(mat_dim, mat_a, &mat_a, &mat_b, &mat_c);
         mat_tmp_c = mat_c + mat_dim * mat_dim;
@@ -51,20 +50,6 @@ int main(int argc, char **argv)
 
     t1 = MPI_Wtime();
 
-    /* copy entire matrices to all the other processes */
-    if (!rank) {
-        /* send A and B to other processes */
-        int i;
-        for (i = 1; i < nprocs; i++) {
-            MPI_Send(mat_a, mat_dim * mat_dim, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-            MPI_Send(mat_b, mat_dim * mat_dim, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-        }
-    } else {
-        /* receive A and B from master */
-        MPI_Recv(mat_a, mat_dim * mat_dim, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-        MPI_Recv(mat_b, mat_dim * mat_dim, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    }
-
     /*
      * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
      *
@@ -82,34 +67,51 @@ int main(int argc, char **argv)
 
     work_id_len = blk_num * blk_num;
 
-    for (work_id = rank; work_id < work_id_len; work_id += nprocs) {
-        int global_i = work_id / blk_num;
-        int global_k = work_id % blk_num;
-        int global_j;
+    /* copy entire matrices to workers */
+    if (!rank) {
+        /* send A and B to workers */
+        int i;
+        for (i = 1; i < nprocs; i++) {
+            MPI_Send(mat_a, mat_dim * mat_dim, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+            MPI_Send(mat_b, mat_dim * mat_dim, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+        }
+    } else {
+        /* receive A and B from master */
+        MPI_Recv(mat_a, mat_dim * mat_dim, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(mat_b, mat_dim * mat_dim, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
 
-        /* copy block from mat_a */
-        copy_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
-        if (is_zero(local_a))
-            continue;
+    /* compute Cij += Aik * Bkj */
+    if (rank) {
+        for (work_id = rank - 1; work_id < work_id_len; work_id += nprocs - 1) {
+            int global_i = work_id / blk_num;
+            int global_k = work_id % blk_num;
+            int global_j;
 
-        for (global_j = 0; global_j < blk_num; global_j++) {
-            /* copy block from mat_b */
-            copy_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
-            if (is_zero(local_b))
+            /* copy block from mat_a */
+            copy_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
+            if (is_zero_local(local_a))
                 continue;
 
-            /* compute only if both local_a and local_b are nonzero */
-            dgemm(local_a, local_b, local_c);
+            for (global_j = 0; global_j < blk_num; global_j++) {
+                /* copy block from mat_b */
+                copy_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
+                if (is_zero_local(local_b))
+                    continue;
 
-            /* write results to mat_c */
-            add_local_to_global(mat_c, local_c, mat_dim, global_i, global_j);
+                /* compute only if both local_a and local_b are nonzero */
+                dgemm(local_a, local_b, local_c);
+
+                /* write results to mat_c */
+                add_local_to_global(mat_c, local_c, mat_dim, global_i, global_j);
+            }
         }
     }
 
     /* accumulate results */
     if (!rank) {
         int i, j, k;
-        /* sum C computed by other processes */
+        /* sum C computed by workers */
         for (i = 1; i < nprocs; i++) {
             MPI_Recv(mat_tmp_c, mat_dim * mat_dim, MPI_DOUBLE, i, 0, MPI_COMM_WORLD,
                      MPI_STATUS_IGNORE);
@@ -136,26 +138,4 @@ int main(int argc, char **argv)
     MPI_Free_mem(mat_a);
     MPI_Finalize();
     return 0;
-}
-
-void add_local_to_global(double *global_mat, double *local_mat, int mat_dim, int global_i,
-                         int global_j)
-{
-    int i, j;
-    int offset = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
-    for (i = 0; i < BLK_DIM; i++) {
-        for (j = 0; j < BLK_DIM; j++)
-            global_mat[offset + j + i * mat_dim] += local_mat[j + i * BLK_DIM];
-    }
-}
-
-void copy_global_to_local(double *local_mat, double *global_mat, int mat_dim, int global_i,
-                          int global_j)
-{
-    int i, j;
-    int offset = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
-    for (i = 0; i < BLK_DIM; i++) {
-        for (j = 0; j < BLK_DIM; j++)
-            local_mat[j + i * BLK_DIM] = global_mat[offset + j + i * mat_dim];
-    }
 }

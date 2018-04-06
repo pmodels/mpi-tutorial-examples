@@ -34,9 +34,7 @@ int main(int argc, char **argv)
         MPI_Alloc_mem(3 * mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mat_a);
         init_mats(mat_dim, mat_a, &mat_a, &mat_b, &mat_c);
     } else {
-        MPI_Alloc_mem(3 * mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mat_a);
-        mat_b = mat_a + mat_dim * mat_dim;
-        mat_c = mat_b + mat_dim * mat_dim;
+        MPI_Alloc_mem(mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mat_c);
         memset(mat_c, 0, mat_dim * mat_dim * sizeof(double));
     }
 
@@ -66,7 +64,7 @@ int main(int argc, char **argv)
 
     work_id_len = blk_num * blk_num;
 
-    /* distribute blocks */
+    /* distribute blocks and compute */
     if (!rank) {
         /* send A and B to workers */
         for (work_id = 0; work_id < work_id_len; work_id++) {
@@ -86,51 +84,85 @@ int main(int argc, char **argv)
             }
         }
     } else {
-        /* receive A and B from master */
-        for (work_id = rank - 1; work_id < work_id_len; work_id += nprocs - 1) {
-            int global_i = work_id / blk_num;
-            int global_k = work_id % blk_num;
+        /* receive A and B from master and compute */
+        /* requests to receive blocks used in the current iteration */
+        MPI_Request recv_a_req = MPI_REQUEST_NULL;
+        MPI_Request *recv_b_reqs = (MPI_Request *) malloc(sizeof(MPI_Request) * blk_num);
+        /* requests to receive blocks used in the next iteration */
+        MPI_Request pf_recv_a_req = MPI_REQUEST_NULL;
+        MPI_Request *pf_recv_b_reqs = (MPI_Request *) malloc(sizeof(MPI_Request) * blk_num);
+        int first_work_id = rank - 1;
+        double *bs_mem, *local_bs, *pf_local_bs, *tmp_local_bs, *pf_local_a, *tmp_local_a;
+        double *org_local_a = local_a;
+
+        /* buffers to keep multiple local_b */
+        MPI_Alloc_mem((2 * blk_num + 1) * BLK_DIM * BLK_DIM * sizeof(double), MPI_INFO_NULL,
+                      &bs_mem);
+        local_bs = bs_mem;
+        pf_local_bs = local_bs + blk_num * BLK_DIM * BLK_DIM;
+        pf_local_a = pf_local_bs + blk_num * BLK_DIM * BLK_DIM;
+
+        if (first_work_id < work_id_len) {
+            /* try to receive A and B that are used in the first iteration */
             int global_j;
 
-            /* receive A */
-            MPI_Recv(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
-                     MPI_STATUS_IGNORE);
-            copy_local_to_global(mat_a, local_a, mat_dim, global_i, global_k);
-
-            /* receive B */
-            for (global_j = 0; global_j < blk_num; global_j++) {
-                MPI_Recv(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
-                         MPI_STATUS_IGNORE);
-                copy_local_to_global(mat_b, local_b, mat_dim, global_k, global_j);
-            }
+            /* prefetch A */
+            MPI_Irecv(pf_local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
+                      &pf_recv_a_req);
+            /* prefetch B */
+            for (global_j = 0; global_j < blk_num; global_j++)
+                MPI_Irecv(&pf_local_bs[global_j * BLK_DIM * BLK_DIM], BLK_DIM * BLK_DIM, MPI_DOUBLE,
+                          0, 0, MPI_COMM_WORLD, &pf_recv_b_reqs[global_j]);
         }
-    }
 
-    /* compute Cij += Aik * Bkj */
-    if (rank) {
-        for (work_id = rank - 1; work_id < work_id_len; work_id += nprocs - 1) {
+        for (work_id = first_work_id; work_id < work_id_len; work_id += nprocs - 1) {
             int global_i = work_id / blk_num;
-            int global_k = work_id % blk_num;
             int global_j;
 
-            /* copy block from mat_a */
-            copy_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
-            if (is_zero_local(local_a))
-                continue;
+            recv_a_req = pf_recv_a_req;
+            memcpy(recv_b_reqs, pf_recv_b_reqs, sizeof(MPI_Request) * blk_num);
+            /* swap local_bs and pf_local_bs */
+            tmp_local_bs = local_bs;
+            local_bs = pf_local_bs;
+            pf_local_bs = tmp_local_bs;
+            /* swap local_a and pf_local_a */
+            tmp_local_a = local_a;
+            local_a = pf_local_a;
+            pf_local_a = tmp_local_a;
 
+            /* prefetch A and B that will be used in the next iteration */
+            if (work_id + nprocs - 1 < work_id_len) {
+                /* prefetch A */
+                MPI_Irecv(pf_local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
+                          &pf_recv_a_req);
+                /* prefetch B */
+                for (global_j = 0; global_j < blk_num; global_j++)
+                    MPI_Irecv(&pf_local_bs[global_j * BLK_DIM * BLK_DIM], BLK_DIM * BLK_DIM,
+                              MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &pf_recv_b_reqs[global_j]);
+            }
+
+            /* wait prefetch request of A */
+            MPI_Wait(&recv_a_req, MPI_STATUS_IGNORE);
+
+            /* wait prefetch requests of B */
             for (global_j = 0; global_j < blk_num; global_j++) {
-                /* copy block from mat_b */
-                copy_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
-                if (is_zero_local(local_b))
+                MPI_Wait(&recv_b_reqs[global_j], MPI_STATUS_IGNORE);
+
+                if (is_zero_local(local_a) ||
+                    is_zero_local(&local_bs[global_j * BLK_DIM * BLK_DIM]))
                     continue;
 
-                /* compute only if both local_a and local_b are nonzero */
-                dgemm(local_a, local_b, local_c);
+                /* compute C */
+                dgemm(local_a, &local_bs[global_j * BLK_DIM * BLK_DIM], local_c);
 
-                /* write results to mat_c */
+                /* write the result to mat_c */
                 add_local_to_global(mat_c, local_c, mat_dim, global_i, global_j);
             }
         }
+        free(recv_b_reqs);
+        free(pf_recv_b_reqs);
+        MPI_Free_mem(bs_mem);
+        local_a = org_local_a;
     }
 
     /* accumulate results */

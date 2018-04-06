@@ -95,7 +95,7 @@ int main(int argc, char **argv)
         MPI_Get(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, disp_a + offset_a, 1, blk_dtp, win);
         MPI_Win_flush(0, win);
 
-        if (is_zero(local_a))
+        if (is_zero_local(local_a))
             continue;
 
         for (global_j = 0; global_j < blk_num; global_j++) {
@@ -104,7 +104,7 @@ int main(int argc, char **argv)
             MPI_Get(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, disp_b + offset_b, 1, blk_dtp, win);
             MPI_Win_flush(0, win);
 
-            if (is_zero(local_b))
+            if (is_zero_local(local_b))
                 continue;
 
             /* compute only if both local_a and local_b are nonzero */
