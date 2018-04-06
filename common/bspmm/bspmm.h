@@ -1,4 +1,3 @@
-
 #ifndef BSPMM_H_
 #define BSPMM_H_
 

@@ -1,18 +1,20 @@
 MPICXX=mpicxx
 MPICC=mpicc
 CFLAGS= -g -Wall
-BINS=master_worker_static master_worker_dynamic sort_any_procs
+BSPMM_OBJS=$(PWD)/../../common/bspmm/bspmm_common.o
+BSPMM_CFLAGS=$(CFLAGS) -I$(PWD)/../../common/bspmm/
+BINS=sort_any_procs bspmm_blocking
 
 all: $(BINS)
+
+%.o: %.c
+	$(MPICC) $(CFLAGS) $< -c -lm -o $@
 
 sort_any_procs: sort_any_procs.c
 	$(MPICC) $(CFLAGS) $^ -o $@
 
-master_worker_static: master_worker_static.c
-	$(MPICC) $(CFLAGS) $^ -o $@
-
-master_worker_dynamic: master_worker_dynamic.c
-	$(MPICC) $(CFLAGS) $^ -o $@
+bspmm_blocking: bspmm_blocking.c $(BSPMM_OBJS)
+	$(MPICC) $(BSPMM_CFLAGS) -o $@ $< $(BSPMM_OBJS)
 
 clean:
-	rm -f $(BINS)
+	rm -f $(BINS) $(BSPMM_OBJS)

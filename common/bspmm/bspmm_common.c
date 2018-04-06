@@ -1,4 +1,3 @@
-
 #include "bspmm.h"
 
 int setup(int rank, int nprocs, int argc, char **argv, int *mat_dim_ptr)
