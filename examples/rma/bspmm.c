@@ -89,19 +89,24 @@ int main(int argc, char **argv)
         int global_i = work_id / blk_num;
         int global_k = work_id % blk_num;
         int global_j;
+
         /* get block from mat_a */
         offset_a = global_i * BLK_DIM * mat_dim + global_k * BLK_DIM;
         MPI_Get(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, disp_a + offset_a, 1, blk_dtp, win);
         MPI_Win_flush(0, win);
+
         if (is_zero(local_a))
             continue;
+
         for (global_j = 0; global_j < blk_num; global_j++) {
             /* get block from mat_b */
             offset_b = global_k * BLK_DIM * mat_dim + global_j * BLK_DIM;
             MPI_Get(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, disp_b + offset_b, 1, blk_dtp, win);
             MPI_Win_flush(0, win);
+
             if (is_zero(local_b))
                 continue;
+
             /* compute only if both local_a and local_b are nonzero */
             dgemm(local_a, local_b, local_c);
 
@@ -109,7 +114,6 @@ int main(int argc, char **argv)
             offset_c = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
             MPI_Accumulate(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, disp_c + offset_c, 1, blk_dtp,
                            MPI_SUM, win);
-
             MPI_Win_flush(0, win);
         }
     }

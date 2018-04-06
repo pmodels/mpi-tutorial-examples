@@ -1,11 +1,4 @@
-/*
- * Copyright (c) 2014 Xin Zhao. All rights reserved.
- *
- * Author(s): Xin Zhao <xinzhao3@illinois.edu>
- *
- */
-
-#include "../../common/bspmm/bspmm.h"
+#include "bspmm.h"
 
 void add_local_to_global(double *global_mat, double *local_mat, int mat_dim, int global_i,
                          int global_j);
@@ -93,15 +86,18 @@ int main(int argc, char **argv)
         int global_i = work_id / blk_num;
         int global_k = work_id % blk_num;
         int global_j;
+
         /* copy block from mat_a */
         copy_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
         if (is_zero(local_a))
             continue;
+
         for (global_j = 0; global_j < blk_num; global_j++) {
             /* copy block from mat_b */
             copy_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
             if (is_zero(local_b))
                 continue;
+
             /* compute only if both local_a and local_b are nonzero */
             dgemm(local_a, local_b, local_c);
 
