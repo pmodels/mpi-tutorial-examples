@@ -55,7 +55,11 @@ int main(int argc, char **argv)
     local_c = local_b + BLK_DIM * BLK_DIM;
 
     /* create block datatype */
-    MPI_Type_vector(BLK_DIM, BLK_DIM, mat_dim, MPI_DOUBLE, &blk_dtp);
+    int array_sizes[2] = { mat_dim, mat_dim };
+    int array_subsizes[2] = { BLK_DIM, BLK_DIM };
+    int array_starts[2] = { 0, 0 };
+    MPI_Type_create_subarray(2, array_sizes, array_subsizes, array_starts,
+                             MPI_ORDER_C, MPI_DOUBLE, &blk_dtp);
     MPI_Type_commit(&blk_dtp);
 
     disp_a = 0;
