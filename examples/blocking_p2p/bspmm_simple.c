@@ -89,13 +89,13 @@ int main(int argc, char **argv)
             int global_j;
 
             /* copy block from mat_a */
-            copy_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
+            pack_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
             if (is_zero_local(local_a))
                 continue;
 
             for (global_j = 0; global_j < blk_num; global_j++) {
                 /* copy block from mat_b */
-                copy_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
+                pack_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
                 if (is_zero_local(local_b))
                     continue;
 

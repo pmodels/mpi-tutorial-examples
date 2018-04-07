@@ -81,7 +81,7 @@ int main(int argc, char **argv)
                 /* send empty message */
                 MPI_Send(NULL, 0, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
             } else {
-                copy_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
+                pack_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
                 MPI_Send(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
             }
 
@@ -91,7 +91,7 @@ int main(int argc, char **argv)
                     /* send empty message */
                     MPI_Send(NULL, 0, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
                 } else {
-                    copy_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
+                    pack_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
                     MPI_Send(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
                 }
             }
@@ -107,14 +107,14 @@ int main(int argc, char **argv)
             MPI_Recv(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
             MPI_Get_count(&status, MPI_DOUBLE, &count);
             if (count)
-                copy_local_to_global(mat_a, local_a, mat_dim, global_i, global_k);
+                unpack_local_to_global(mat_a, local_a, mat_dim, global_i, global_k);
 
             /* receive B */
             for (global_j = 0; global_j < blk_num; global_j++) {
                 MPI_Recv(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &status);
                 MPI_Get_count(&status, MPI_DOUBLE, &count);
                 if (count)
-                    copy_local_to_global(mat_b, local_b, mat_dim, global_k, global_j);
+                    unpack_local_to_global(mat_b, local_b, mat_dim, global_k, global_j);
             }
         }
     }
@@ -127,13 +127,13 @@ int main(int argc, char **argv)
             int global_j;
 
             /* copy block from mat_a */
-            copy_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
+            pack_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
             if (is_zero_local(local_a))
                 continue;
 
             for (global_j = 0; global_j < blk_num; global_j++) {
                 /* copy block from mat_b */
-                copy_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
+                pack_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
                 if (is_zero_local(local_b))
                     continue;
 
@@ -186,7 +186,7 @@ int main(int argc, char **argv)
                 if (is_zero_global(mat_c, mat_dim, global_i, global_j)) {
                     MPI_Send(NULL, 0, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
                 } else {
-                    copy_global_to_local(local_c, mat_c, mat_dim, global_i, global_j);
+                    pack_global_to_local(local_c, mat_c, mat_dim, global_i, global_j);
                     MPI_Send(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
                 }
             }

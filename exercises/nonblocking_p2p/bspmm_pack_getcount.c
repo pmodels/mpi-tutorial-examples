@@ -79,7 +79,7 @@ int main(int argc, char **argv)
                 /* send empty message */
                 MPI_Send(NULL, 0, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
             } else {
-                copy_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
+                pack_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
                 MPI_Send(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
             }
 
@@ -89,7 +89,7 @@ int main(int argc, char **argv)
                     /* send empty message */
                     MPI_Send(NULL, 0, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
                 } else {
-                    copy_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
+                    pack_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
                     MPI_Send(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
                 }
             }
@@ -222,7 +222,7 @@ int main(int argc, char **argv)
                 if (is_zero_global(mat_c, mat_dim, global_i, global_j)) {
                     MPI_Send(NULL, 0, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
                 } else {
-                    copy_global_to_local(local_c, mat_c, mat_dim, global_i, global_j);
+                    pack_global_to_local(local_c, mat_c, mat_dim, global_i, global_j);
                     MPI_Send(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
                 }
             }

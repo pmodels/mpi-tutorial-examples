@@ -105,8 +105,20 @@ int is_zero_global(double *global_mat, int mat_dim, int global_i, int global_j)
     return 1;
 }
 
-void copy_local_to_global(double *global_mat, double *local_mat, int mat_dim, int global_i,
+void pack_global_to_local(double *local_mat, double *global_mat, int mat_dim, int global_i,
                           int global_j)
+{
+    int i, j;
+    int offset = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
+
+    for (i = 0; i < BLK_DIM; i++) {
+        for (j = 0; j < BLK_DIM; j++)
+            local_mat[j + i * BLK_DIM] = global_mat[offset + j + i * mat_dim];
+    }
+}
+
+void unpack_local_to_global(double *global_mat, double *local_mat, int mat_dim, int global_i,
+                            int global_j)
 {
     int i, j;
     int offset = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
@@ -126,18 +138,6 @@ void add_local_to_global(double *global_mat, double *local_mat, int mat_dim, int
     for (i = 0; i < BLK_DIM; i++) {
         for (j = 0; j < BLK_DIM; j++)
             global_mat[offset + j + i * mat_dim] += local_mat[j + i * BLK_DIM];
-    }
-}
-
-void copy_global_to_local(double *local_mat, double *global_mat, int mat_dim, int global_i,
-                          int global_j)
-{
-    int i, j;
-    int offset = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
-
-    for (i = 0; i < BLK_DIM; i++) {
-        for (j = 0; j < BLK_DIM; j++)
-            local_mat[j + i * BLK_DIM] = global_mat[offset + j + i * mat_dim];
     }
 }
 
