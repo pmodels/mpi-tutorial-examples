@@ -1,93 +1,108 @@
 #include <mpi.h>
+#include <stdio.h>
 #include <stdlib.h>
-#define N 60
+#include <time.h>
+#include <string.h>
+#include <math.h>
 
-/*
- * This program sorts integer arrays in ascending order. Array sizes must be divisible by the number of processes
- */
+#define NUM_ELEMENTS 50
 
-int main(int argc, char *argv[]) {
-	int rank, num_procs;
-	int a[N];
-	int *b, i, j;
-	int sort_size;
-	MPI_Init(&argc, &argv);
-	MPI_Comm_size(MPI_COMM_WORLD, &num_procs);
-	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+static int compare_int(const void *a, const void *b)
+{
+    return (*(int *) a - *(int *) b);
+}
 
-	for (i = 0; i < N; i++) {
-		a[i] = N - i;
-	}
+/* Merge sorted arrays a[] and b[] into a[].
+ * Length of a[] must be sum of lengths of a[] and b[] */
+static void merge(int *a, int numel_a, int *b, int numel_b)
+{
+    int *sorted = malloc((numel_a + numel_b) * sizeof *a);
+    int i, a_i = 0, b_i = 0;
+    /* merge a[] and b[] into sorted[] */
+    for (i = 0; i < (numel_a + numel_b); i++) {
+        if (a_i < numel_a && b_i < numel_b) {
+            if (a[a_i] < b[b_i]) {
+                sorted[i] = a[a_i];
+                a_i++;
+            } else {
+                sorted[i] = b[b_i];
+                b_i++;
+            }
+        } else {
+            if (a_i < numel_a) {
+                sorted[i] = a[a_i];
+                a_i++;
+            } else {
+                sorted[i] = b[b_i];
+                b_i++;
+            }
+        }
+    }
+    /* copy sorted[] into a[] */
+    memcpy(a, sorted, (numel_a + numel_b) * sizeof *sorted);
+    free(sorted);
+}
 
-	sort_size = N / num_procs;
-	b = (int *) malloc(sort_size * sizeof(int));
-	MPI_Scatter(a, sort_size, MPI_INT, b, sort_size, MPI_INT, 0,
-			MPI_COMM_WORLD);
-	/*
-	 * Sort sub array
-	 */
-	for (i = 0; i < sort_size - 1; i++) {
-		int min = i;
-		int temp = b[i];
-		for (j = i + 1; j < sort_size; j++) {
-			if (temp > b[j]) {
-				temp = b[j];
-				min = j;
-			}
-		}
-		temp = b[i];
-		b[i] = b[min];
-		b[min] = temp;
-	}
+int main(int argc, char **argv)
+{
+    int rank, size;
+    int *data = NULL, *chunk = NULL;
+    MPI_Init(&argc, &argv);
 
-	MPI_Gather(b, sort_size, MPI_INT, a, sort_size, MPI_INT, 0, MPI_COMM_WORLD);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-	/*
-	 * Merge in root
-	 */
-	if (rank == 0) {
-		i = 0;
-		while (i < num_procs - 1) {
-			int first = 0, second = 0;
-			int *temp1 = (int*) malloc((i+1)*sort_size*sizeof(int));
-			int *temp2 = (int*) malloc(sort_size*sizeof(int));
-			for (j = 0; j < (i + 1) * sort_size; j++) {
-				temp1[j] = a[j];
-			}
+    int chunk_size = (int) ceil((double) NUM_ELEMENTS / size);
+    int last_chunk_size = chunk_size - (chunk_size * size - NUM_ELEMENTS);
 
-			for (j = 0; j < sort_size; j++) {
-				temp2[j] = a[j + (i + 1) * sort_size];
-			}
+    srand(time(NULL));
+    chunk = malloc(sizeof(int) * chunk_size);
 
-			j = 0;
-			while (first < (i + 1 * sort_size) && second < sort_size) {
-				if (temp1[first] < temp2[second]) {
-					a[j++] = temp1[first];
-					first++;
-				} else {
-					a[j++] = temp2[second];
-					second++;
-				}
-			}
+    if (rank == 0) {
+        /* allocate data buffer with garbage space for
+         * the last chunk (i.e., when last_chunk_size < chunk_size) */
+        data = malloc(sizeof(int) * chunk_size * size);
 
-			while (first < ((i + 1) * sort_size)) {
-				a[j++] = temp1[first++];
-			}
+        /* prepare data and display it */
+        int i;
+        printf("Unsorted:\t");
+        for (i = 0; i < NUM_ELEMENTS; i++) {
+            data[i] = rand() % NUM_ELEMENTS;
+            printf("%d ", data[i]);
+        }
+        printf("\n");
+    }
 
-			while (second < sort_size) {
-				a[j++] = temp2[second++];
-			}
+    /* scatter chunks of the data to all ranks */
+    MPI_Scatter(data, chunk_size, MPI_INT, chunk, chunk_size, MPI_INT, 0, MPI_COMM_WORLD);
 
-			i++;
-			free(temp1);
-			free(temp2);
-		}
+    /* sort the local chunk of the data */
+    qsort(chunk, (rank == size - 1) ? last_chunk_size : chunk_size, sizeof(int), compare_int);
 
-		for (i = 0; i < N; i++) {
-			printf("%d\n", a[i]);
-		}
-	}
+    /* gather sorted chunks of the data */
+    MPI_Gather(chunk, chunk_size, MPI_INT, data, chunk_size, MPI_INT, 0, MPI_COMM_WORLD);
 
-	MPI_Finalize();
-	return 0;
+    if (rank == 0) {
+        /* merge all the sorted chunks */
+        int chunk_i;
+        int sorted_so_far = chunk_size;
+        for (chunk_i = 1; chunk_i < size; chunk_i++) {
+            merge(data, sorted_so_far, &data[chunk_i * chunk_size],
+                  (chunk_i == size - 1) ? last_chunk_size : chunk_size);
+            sorted_so_far += chunk_size;
+        }
+
+        /* display sorted array */
+        int i;
+        printf("Sorted:\t\t");
+        for (i = 0; i < NUM_ELEMENTS; i++)
+            printf("%d ", data[i]);
+        printf("\n");
+
+        free(data);
+    }
+
+    free(chunk);
+    MPI_Finalize();
+    return 0;
 }
