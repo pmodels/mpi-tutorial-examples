@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include <math.h>
 
 #define NUM_ELEMENTS 50
 
@@ -49,6 +50,9 @@ int main(int argc, char **argv)
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+	int first_half = floor( (double) NUM_ELEMENTS / 2);
+	int second_half = NUM_ELEMENTS - first_half;
+
     srand(time(NULL));
 
     if (rank == 0) {
@@ -61,17 +65,17 @@ int main(int argc, char **argv)
         }
         printf("\n");
 
-        /* send latter half of the data to the other rank */
-        MPI_Send(&data[NUM_ELEMENTS / 2], NUM_ELEMENTS / 2, MPI_INT, 1, 0, MPI_COMM_WORLD);
+        /* send second half of the data to the other rank */
+        MPI_Send(&data[first_half], second_half, MPI_INT, 1, 0, MPI_COMM_WORLD);
         /* sort the first half of the data */
-        qsort(data, NUM_ELEMENTS / 2, sizeof(int), compare_int);
+        qsort(data, first_half, sizeof(int), compare_int);
 
-        /* receive sorted latter half of the data */
-        MPI_Recv(&data[NUM_ELEMENTS / 2], NUM_ELEMENTS / 2, MPI_INT, 1, 0, MPI_COMM_WORLD,
+        /* receive sorted second half of the data */
+        MPI_Recv(&data[first_half], second_half, MPI_INT, 1, 0, MPI_COMM_WORLD,
                  MPI_STATUS_IGNORE);
 
         /* merge the two sorted halves (using sort on the whole array) */
-        merge(data, NUM_ELEMENTS / 2, &data[NUM_ELEMENTS / 2], NUM_ELEMENTS / 2);
+        merge(data, first_half, &data[first_half], second_half);
 
         /* display sorted array */
         printf("Sorted:\t\t");
@@ -80,12 +84,12 @@ int main(int argc, char **argv)
         printf("\n");
     } else if (rank == 1) {
         /* receive half of the data */
-        MPI_Recv(data, NUM_ELEMENTS / 2, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        MPI_Recv(data, second_half, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         /* sort the received data */
-        qsort(data, NUM_ELEMENTS / 2, sizeof(int), compare_int);
+        qsort(data, second_half, sizeof(int), compare_int);
 
         /* send back the sorted data */
-        MPI_Send(data, NUM_ELEMENTS / 2, MPI_INT, 0, 0, MPI_COMM_WORLD);
+        MPI_Send(data, second_half, MPI_INT, 0, 0, MPI_COMM_WORLD);
     }
 
     MPI_Finalize();
