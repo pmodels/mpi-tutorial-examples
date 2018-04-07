@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <string.h>
+#include <math.h>
 
 #define NUM_ELEMENTS 50
 
@@ -50,7 +51,9 @@ int main(int argc, char **argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    int chunk_size = NUM_ELEMENTS / size;       /* assuming size is a factor of NUM_ELEMENTS */
+    int chunk_size = (int) ceil((double) NUM_ELEMENTS / size);
+    int last_chunk_size = chunk_size - (chunk_size * size - NUM_ELEMENTS);
+
     srand(time(NULL));
 
     if (rank == 0) {
@@ -66,20 +69,24 @@ int main(int argc, char **argv)
         /* send a chunk of the data to each of the other ranks */
         int target;
         for (target = 1; target < size; target++)
-            MPI_Send(&data[target * chunk_size], chunk_size, MPI_INT, target, 0, MPI_COMM_WORLD);
+            MPI_Send(&data[target * chunk_size],
+                     (target == size - 1) ? last_chunk_size : chunk_size, MPI_INT, target, 0,
+                     MPI_COMM_WORLD);
         /* sort the first chunk of the data */
         qsort(data, chunk_size, sizeof(int), compare_int);
 
         /* receive sorted latter chunks of the data */
         for (target = 1; target < size; target++)
-            MPI_Recv(&data[target * chunk_size], chunk_size, MPI_INT, target, 0, MPI_COMM_WORLD,
-                     MPI_STATUS_IGNORE);
+            MPI_Recv(&data[target * chunk_size],
+                     (target == size - 1) ? last_chunk_size : chunk_size, MPI_INT, target, 0,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
         /* merge all the sorted chunks */
         int chunk_i;
         int sorted_so_far = chunk_size;
         for (chunk_i = 1; chunk_i < size; chunk_i++) {
-            merge(data, sorted_so_far, &data[chunk_i * chunk_size], chunk_size);
+            merge(data, sorted_so_far, &data[chunk_i * chunk_size],
+                  (chunk_i == size - 1) ? last_chunk_size : chunk_size);
             sorted_so_far += chunk_size;
         }
 
@@ -89,6 +96,8 @@ int main(int argc, char **argv)
             printf("%d ", data[i]);
         printf("\n");
     } else {
+        if (rank == size - 1)
+            chunk_size = last_chunk_size;
         /* receive a chunk of the data */
         MPI_Recv(data, chunk_size, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         /* sort the received data */
