@@ -15,17 +15,17 @@ void init_sources(int bx, int by, int offx, int offy, int n,
 
 void alloc_bufs(int bx, int by,
                 double **aold_ptr, double **anew_ptr,
-                double **sbufnorth_ptr, double **sbufsouth_ptr,
-                double **sbufeast_ptr, double **sbufwest_ptr,
-                double **rbufnorth_ptr, double **rbufsouth_ptr,
-                double **rbufeast_ptr, double **rbufwest_ptr);
+                double **exchange_sbuf_ptr, double **exchange_rbuf_ptr);
+
+void pack_data(int bx, int by, double *aold,
+               double *sbufnorth, double *sbufsouth, double *sbfueast, double *sbufwest);
+
+void unpack_data(int bx, int by, double *aold,
+                 double *rbufnorth, double *rbufsouth, double *rbufeast, double *rbufwest);
 
 void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr);
 
-void free_bufs(double *aold, double *anew,
-               double *sbufnorth, double *sbufsouth,
-               double *sbufeast, double *sbufwest,
-               double *rbufnorth, double *rbufsouth, double *rbufeast, double *rbufwest);
+void free_bufs(double *aold, double *anew, double *exchange_sbuf, double *exchange_rbuf);
 
 int main(int argc, char **argv)
 {
@@ -35,7 +35,6 @@ int main(int argc, char **argv)
     int rx, ry;
     int north, south, west, east;
     int bx, by, offx, offy;
-    int *send_start_indices, *recv_start_indices, *send_sizes, *recv_sizes;
 
     /* three heat sources */
     const int nsources = 3;
@@ -47,8 +46,7 @@ int main(int argc, char **argv)
 
     int iter, i;
 
-    double *sbufnorth, *sbufsouth, *sbufeast, *sbufwest;
-    double *rbufnorth, *rbufsouth, *rbufeast, *rbufwest;
+    double *exchange_sbuf, *exchange_rbuf;
     double *aold, *anew, *tmp;
 
     double heat, rheat;
@@ -98,51 +96,61 @@ int main(int argc, char **argv)
     init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
 
     /* allocate working arrays & communication buffers */
-    alloc_bufs(bx, by, &aold, &anew,
-               &sbufnorth, &sbufsouth, &sbufeast, &sbufwest,
-               &rbufnorth, &rbufsouth, &rbufeast, &rbufwest);
+    alloc_bufs(bx, by, &aold, &anew, &exchange_sbuf, &exchange_rbuf);
+
+    /* set offset for each halo zone in the exchange buffers */
+    int ebufoff_north, ebufoff_south, ebufoff_east, ebufoff_west;
+    ebufoff_north = 0;
+    ebufoff_south = bx;
+    ebufoff_east = 2 * bx;
+    ebufoff_west = 2 * bx + by;
+
+    /* setup parameters for alltoallv */
+    int *send_sizes, *send_start_indices, *recv_sizes, *recv_start_indices;
+
+    send_sizes = (int *) malloc(size * sizeof(int));
+    send_start_indices = (int *) malloc(size * sizeof(int));
+    recv_sizes = (int *) malloc(size * sizeof(int));
+    recv_start_indices = (int *) malloc(size * sizeof(int));
+
+    for (i = 0; i < size; i++) {
+        if (i == north) {
+            send_sizes[i] = recv_sizes[i] = bx;
+            send_start_indices[i] = recv_start_indices[i] = ebufoff_north;
+        } else if (i == south) {
+            send_sizes[i] = recv_sizes[i] = bx;
+            send_start_indices[i] = recv_start_indices[i] = ebufoff_south;
+        } else if (i == east) {
+            send_sizes[i] = recv_sizes[i] = by;
+            send_start_indices[i] = recv_start_indices[i] = ebufoff_east;
+        } else if (i == west) {
+            send_sizes[i] = recv_sizes[i] = by;
+            send_start_indices[i] = recv_start_indices[i] = ebufoff_west;
+        } else {
+            send_sizes[i] = recv_sizes[i] = 0;
+        }
+    }
 
     t1 = MPI_Wtime();   /* take time */
 
     for (iter = 0; iter < niters; ++iter) {
-
-        MPI_Request reqs[8];
 
         /* refresh heat sources */
         for (i = 0; i < locnsources; ++i) {
             aold[ind(locsources[i][0], locsources[i][1])] += energy;    /* heat source */
         }
 
-        send_start_indices = (int *) malloc(size * sizeof(int));
-        send_sizes = (int *) malloc(size * sizeof(int));
-        recv_start_indices = (int *) malloc(size * sizeof(int));
-        recv_sizes = (int *) malloc(size * sizeof(int));
-
-        for (i = 0; i < size; i++) {
-            if (i == north) {
-                send_sizes[i] = recv_sizes[i] = bx;
-                send_start_indices[i] = ind(i + 1, 1);
-                recv_start_indices[i] = ind(i + 1, 0);
-            } else if (i == south) {
-                send_sizes[i] = recv_sizes[i] = bx;
-                send_start_indices[i] = ind(i + 1, by);
-                recv_start_indices[i] = ind(i + 1, by + 1);
-            } else if (i == east) {
-                send_sizes[i] = recv_sizes[i] = by;
-                send_start_indices[i] = ind(bx, i + 1);
-                recv_start_indices[i] = ind(bx + 1, i + 1);
-            } else if (i == west) {
-                send_sizes[i] = recv_sizes[i] = by;
-                send_start_indices[i] = ind(1, i + 1);
-                recv_start_indices[i] = ind(0, i + 1);
-            } else {
-                send_sizes[i] = recv_sizes[i] = 0;
-            }
-        }
+        /* pack data */
+        pack_data(bx, by, aold, &exchange_sbuf[ebufoff_north], &exchange_sbuf[ebufoff_south],
+                  &exchange_sbuf[ebufoff_east], &exchange_sbuf[ebufoff_west]);
 
         /* exchange data with neighbors */
-        MPI_Alltoallv(aold, send_sizes, send_start_indices, MPI_DOUBLE, MPI_IN_PLACE, recv_sizes,
-                      recv_start_indices, MPI_DOUBLE, MPI_COMM_WORLD);
+        MPI_Alltoallv(exchange_sbuf, send_sizes, send_start_indices, MPI_DOUBLE, exchange_rbuf,
+                      recv_sizes, recv_start_indices, MPI_DOUBLE, MPI_COMM_WORLD);
+
+        /* unpack data */
+        unpack_data(bx, by, aold, &exchange_rbuf[ebufoff_north], &exchange_rbuf[ebufoff_south],
+                    &exchange_rbuf[ebufoff_east], &exchange_rbuf[ebufoff_west]);
 
         /* update grid points */
         update_grid(bx, by, aold, anew, &heat);
@@ -160,13 +168,17 @@ int main(int argc, char **argv)
     t2 = MPI_Wtime();
 
     /* free working arrays and communication buffers */
-    free_bufs(aold, anew, sbufnorth, sbufsouth, sbufeast, sbufwest,
-              rbufnorth, rbufsouth, rbufeast, rbufwest);
+    free_bufs(aold, anew, exchange_sbuf, exchange_rbuf);
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     if (!rank)
         printf("[%i] last heat: %f time: %f\n", rank, rheat, t2 - t1);
+
+    free(send_sizes);
+    free(send_start_indices);
+    free(recv_sizes);
+    free(recv_start_indices);
 
     MPI_Finalize();
 }
@@ -231,14 +243,10 @@ void init_sources(int bx, int by, int offx, int offy, int n,
 }
 
 void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr,
-                double **sbufnorth_ptr, double **sbufsouth_ptr,
-                double **sbufeast_ptr, double **sbufwest_ptr,
-                double **rbufnorth_ptr, double **rbufsouth_ptr,
-                double **rbufeast_ptr, double **rbufwest_ptr)
+                double **exchange_sbuf_ptr, double **exchange_rbuf_ptr)
 {
     double *aold, *anew;
-    double *sbufnorth, *sbufsouth, *sbufeast, *sbufwest;
-    double *rbufnorth, *rbufsouth, *rbufeast, *rbufwest;
+    double *exchange_sbuf, *exchange_rbuf;
 
     /* allocate two working arrays */
     MPI_Alloc_mem((bx + 2) * (by + 2) * sizeof(double), MPI_INFO_NULL, &aold);  /* 1-wide halo zones! */
@@ -247,52 +255,53 @@ void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr,
     memset(aold, 0, (bx + 2) * (by + 2) * sizeof(double));
     memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));
 
-    /* allocate communication buffers */
-    MPI_Alloc_mem(bx * sizeof(double), MPI_INFO_NULL, &sbufnorth);      /* send buffers */
-    MPI_Alloc_mem(bx * sizeof(double), MPI_INFO_NULL, &sbufsouth);
-    MPI_Alloc_mem(by * sizeof(double), MPI_INFO_NULL, &sbufeast);
-    MPI_Alloc_mem(by * sizeof(double), MPI_INFO_NULL, &sbufwest);
-    MPI_Alloc_mem(bx * sizeof(double), MPI_INFO_NULL, &rbufnorth);      /* receive buffers */
-    MPI_Alloc_mem(bx * sizeof(double), MPI_INFO_NULL, &rbufsouth);
-    MPI_Alloc_mem(by * sizeof(double), MPI_INFO_NULL, &rbufeast);
-    MPI_Alloc_mem(by * sizeof(double), MPI_INFO_NULL, &rbufwest);
+    /* allocate communication buffers that holds four halo zones */
+    MPI_Alloc_mem((bx + by) * 2 * sizeof(double), MPI_INFO_NULL, &exchange_sbuf);
+    MPI_Alloc_mem((bx + by) * 2 * sizeof(double), MPI_INFO_NULL, &exchange_rbuf);
 
-    memset(sbufnorth, 0, bx * sizeof(double));
-    memset(sbufsouth, 0, bx * sizeof(double));
-    memset(sbufeast, 0, by * sizeof(double));
-    memset(sbufwest, 0, by * sizeof(double));
-    memset(rbufnorth, 0, bx * sizeof(double));
-    memset(rbufsouth, 0, bx * sizeof(double));
-    memset(rbufeast, 0, by * sizeof(double));
-    memset(rbufwest, 0, by * sizeof(double));
+    memset(exchange_sbuf, 0, (bx + by) * 2 * sizeof(double));
+    memset(exchange_rbuf, 0, (bx + by) * 2 * sizeof(double));
 
     (*aold_ptr) = aold;
     (*anew_ptr) = anew;
-    (*sbufnorth_ptr) = sbufnorth;
-    (*sbufsouth_ptr) = sbufsouth;
-    (*sbufeast_ptr) = sbufeast;
-    (*sbufwest_ptr) = sbufwest;
-    (*rbufnorth_ptr) = rbufnorth;
-    (*rbufsouth_ptr) = rbufsouth;
-    (*rbufeast_ptr) = rbufeast;
-    (*rbufwest_ptr) = rbufwest;
+    (*exchange_sbuf_ptr) = exchange_sbuf;
+    (*exchange_rbuf_ptr) = exchange_rbuf;
 }
 
-void free_bufs(double *aold, double *anew,
-               double *sbufnorth, double *sbufsouth,
-               double *sbufeast, double *sbufwest,
-               double *rbufnorth, double *rbufsouth, double *rbufeast, double *rbufwest)
+void free_bufs(double *aold, double *anew, double *exchange_sbuf, double *exchange_rbuf)
 {
     MPI_Free_mem(aold);
     MPI_Free_mem(anew);
-    MPI_Free_mem(sbufnorth);
-    MPI_Free_mem(sbufsouth);
-    MPI_Free_mem(sbufeast);
-    MPI_Free_mem(sbufwest);
-    MPI_Free_mem(rbufnorth);
-    MPI_Free_mem(rbufsouth);
-    MPI_Free_mem(rbufeast);
-    MPI_Free_mem(rbufwest);
+    MPI_Free_mem(exchange_sbuf);
+    MPI_Free_mem(exchange_rbuf);
+}
+
+void pack_data(int bx, int by, double *aold,
+               double *sbufnorth, double *sbufsouth, double *sbufeast, double *sbufwest)
+{
+    int i;
+    for (i = 0; i < bx; ++i)
+        sbufnorth[i] = aold[ind(i + 1, 1)];     /* #1 row */
+    for (i = 0; i < bx; ++i)
+        sbufsouth[i] = aold[ind(i + 1, by)];    /* #(by) row */
+    for (i = 0; i < by; ++i)
+        sbufeast[i] = aold[ind(bx, i + 1)];     /* #(bx) col */
+    for (i = 0; i < by; ++i)
+        sbufwest[i] = aold[ind(1, i + 1)];      /* #1 col */
+}
+
+void unpack_data(int bx, int by, double *aold,
+                 double *rbufnorth, double *rbufsouth, double *rbufeast, double *rbufwest)
+{
+    int i;
+    for (i = 0; i < bx; ++i)
+        aold[ind(i + 1, 0)] = rbufnorth[i];     /* #0 row */
+    for (i = 0; i < bx; ++i)
+        aold[ind(i + 1, by + 1)] = rbufsouth[i];        /* #(by+1) row */
+    for (i = 0; i < by; ++i)
+        aold[ind(bx + 1, i + 1)] = rbufeast[i]; /* #(bx+1) col */
+    for (i = 0; i < by; ++i)
+        aold[ind(0, i + 1)] = rbufwest[i];      /* #0 col */
 }
 
 void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr)
