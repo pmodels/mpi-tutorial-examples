@@ -33,11 +33,6 @@ int main(int argc, char **argv)
     if (!rank) {
         MPI_Alloc_mem(3 * mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mat_a);
         init_mats(mat_dim, mat_a, &mat_a, &mat_b, &mat_c);
-    } else {
-        MPI_Alloc_mem(3 * mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mat_a);
-        mat_b = mat_a + mat_dim * mat_dim;
-        mat_c = mat_b + mat_dim * mat_dim;
-        memset(mat_c, 0, mat_dim * mat_dim * sizeof(double));
     }
 
     /* allocate local buffer */
@@ -66,114 +61,74 @@ int main(int argc, char **argv)
 
     work_id_len = blk_num * blk_num;
 
-    /* distribute blocks */
     if (!rank) {
-        /* send A and B to workers */
-        for (work_id = 0; work_id < work_id_len; work_id++) {
-            int target = work_id % (nprocs - 1) + 1;
-            int global_i = work_id / blk_num;
-            int global_k = work_id % blk_num;
+        /* distribute A and B and receive results */
+        int iter, niters = (work_id_len + nprocs - 2) / (nprocs - 1);
+
+        for (iter = 0; iter < niters; iter++) {
+            int target;
+            /* not all workers work in the last iteration */
+            int target_end = iter != niters - 1 ? nprocs : work_id_len - iter * (nprocs - 1) + 1;
             int global_j;
 
-            /* send A */
-            pack_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
-            MPI_Send(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
+            /* send A to workers */
+            for (target = 1; target < target_end; target++) {
+                int work_id = iter * (nprocs - 1) + target - 1;
+                int global_i = work_id / blk_num;
+                int global_k = work_id % blk_num;
 
-            /* send B */
+                pack_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
+                MPI_Send(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
+            }
+
+            /* send B to workers and receive C one by one */
             for (global_j = 0; global_j < blk_num; global_j++) {
-                pack_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
-                MPI_Send(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
+                /* send B */
+                for (target = 1; target < target_end; target++) {
+                    int work_id = iter * (nprocs - 1) + target - 1;
+                    int global_k = work_id % blk_num;
+
+                    pack_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
+                    MPI_Send(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
+                }
+
+                /* receive C */
+                for (target = 1; target < target_end; target++) {
+                    int work_id = iter * (nprocs - 1) + target - 1;
+                    int global_i = work_id / blk_num;
+
+                    MPI_Recv(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD,
+                             MPI_STATUS_IGNORE);
+                    add_local_to_global(mat_c, local_c, mat_dim, global_i, global_j);
+                }
             }
         }
     } else {
-        /* receive A and B from master */
+        /* receive A and B from master and return result */
         for (work_id = rank - 1; work_id < work_id_len; work_id += nprocs - 1) {
-            int global_i = work_id / blk_num;
-            int global_k = work_id % blk_num;
-            int global_j;
+            int i;
 
             /* receive A */
             MPI_Recv(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
                      MPI_STATUS_IGNORE);
-            unpack_local_to_global(mat_a, local_a, mat_dim, global_i, global_k);
 
             /* receive B */
-            for (global_j = 0; global_j < blk_num; global_j++) {
+            for (i = 0; i < blk_num; i++) {
                 MPI_Recv(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
                          MPI_STATUS_IGNORE);
-                unpack_local_to_global(mat_b, local_b, mat_dim, global_k, global_j);
-            }
-        }
-    }
 
-    /* compute Cij += Aik * Bkj */
-    if (rank) {
-        for (work_id = rank - 1; work_id < work_id_len; work_id += nprocs - 1) {
-            int global_i = work_id / blk_num;
-            int global_k = work_id % blk_num;
-            int global_j;
+                /* compute Cij += Aik * Bkj */
+                if (is_zero_local(local_a) || is_zero_local(local_b)) {
+                    memset(local_c, 0, BLK_DIM * BLK_DIM * sizeof(double));
+                } else {
+                    /* compute only if both local_a and local_b are nonzero */
+                    dgemm(local_a, local_b, local_c);
+                }
 
-            /* copy block from mat_a */
-            pack_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
-            if (is_zero_local(local_a))
-                continue;
-
-            for (global_j = 0; global_j < blk_num; global_j++) {
-                /* copy block from mat_b */
-                pack_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
-                if (is_zero_local(local_b))
-                    continue;
-
-                /* compute only if both local_a and local_b are nonzero */
-                dgemm(local_a, local_b, local_c);
-
-                /* write results to mat_c */
-                add_local_to_global(mat_c, local_c, mat_dim, global_i, global_j);
-            }
-        }
-    }
-
-    /* accumulate results */
-    if (!rank) {
-        /* sum C computed by workers */
-        char *recv_blks_c = (char *) calloc(nprocs * blk_num, sizeof(char));
-
-        for (work_id = 0; work_id < work_id_len; work_id++) {
-            int target = work_id % (nprocs - 1) + 1;
-            int global_i = work_id / blk_num;
-            int global_j;
-
-            if (recv_blks_c[global_i * nprocs + target] == 1)
-                continue;       /* Cij has been already added */
-
-            for (global_j = 0; global_j < blk_num; global_j++) {
-                /* receive C from target */
-                MPI_Recv(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD,
-                         MPI_STATUS_IGNORE);
-                add_local_to_global(mat_c, local_c, mat_dim, global_i, global_j);
-            }
-            recv_blks_c[global_i * nprocs + target] = 1;
-        }
-        free(recv_blks_c);
-    } else {
-        /* send C to master */
-        char *send_blks_c = (char *) calloc(blk_num, sizeof(char));
-
-        for (work_id = rank - 1; work_id < work_id_len; work_id += nprocs - 1) {
-            int global_i = work_id / blk_num;
-            int global_j;
-
-            if (send_blks_c[global_i] == 1)
-                continue;       /* Cij has been already sent */
-
-            for (global_j = 0; global_j < blk_num; global_j++) {
-                /* send C to master */
-                pack_global_to_local(local_c, mat_c, mat_dim, global_i, global_j);
+                /* send C */
                 MPI_Send(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
             }
-            send_blks_c[global_i] = 1;
         }
-        free(send_blks_c);
     }
 
     t2 = MPI_Wtime();

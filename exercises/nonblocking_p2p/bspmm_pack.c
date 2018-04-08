@@ -33,9 +33,6 @@ int main(int argc, char **argv)
     if (!rank) {
         MPI_Alloc_mem(3 * mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mat_a);
         init_mats(mat_dim, mat_a, &mat_a, &mat_b, &mat_c);
-    } else {
-        MPI_Alloc_mem(mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mat_c);
-        memset(mat_c, 0, mat_dim * mat_dim * sizeof(double));
     }
 
     /* allocate local buffer */
@@ -64,71 +61,90 @@ int main(int argc, char **argv)
 
     work_id_len = blk_num * blk_num;
 
-    /* distribute blocks and compute */
     if (!rank) {
-        /* send A and B to workers */
-        for (work_id = 0; work_id < work_id_len; work_id++) {
-            int target = work_id % (nprocs - 1) + 1;
-            int global_i = work_id / blk_num;
-            int global_k = work_id % blk_num;
+        int iter, niters = (work_id_len + nprocs - 2) / (nprocs - 1);
+
+        for (iter = 0; iter < niters; iter++) {
+            int target;
+            /* not all workers work in the last iteration */
+            int target_end = iter != niters - 1 ? nprocs : work_id_len - iter * (nprocs - 1) + 1;
             int global_j;
 
-            /* send A */
-            pack_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
-            MPI_Send(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
+            /* send A to workers */
+            for (target = 1; target < target_end; target++) {
+                int work_id = iter * (nprocs - 1) + target - 1;
+                int global_i = work_id / blk_num;
+                int global_k = work_id % blk_num;
 
-            /* send B */
+                pack_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
+                MPI_Send(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
+            }
+
+            /* send B to workers and receive C one by one */
             for (global_j = 0; global_j < blk_num; global_j++) {
-                pack_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
-                MPI_Send(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
+                /* send B */
+                for (target = 1; target < target_end; target++) {
+                    int work_id = iter * (nprocs - 1) + target - 1;
+                    int global_k = work_id % blk_num;
+
+                    pack_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
+                    MPI_Send(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
+                }
+
+                /* receive C */
+                for (target = 1; target < target_end; target++) {
+                    int work_id = iter * (nprocs - 1) + target - 1;
+                    int global_i = work_id / blk_num;
+
+                    MPI_Recv(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD,
+                             MPI_STATUS_IGNORE);
+                    add_local_to_global(mat_c, local_c, mat_dim, global_i, global_j);
+                }
             }
         }
     } else {
-        /* receive A and B from master and compute */
+        /* receive A and B from master and return result */
         /* requests to receive blocks used in the current iteration */
         MPI_Request recv_a_req = MPI_REQUEST_NULL;
         MPI_Request *recv_b_reqs = (MPI_Request *) malloc(sizeof(MPI_Request) * blk_num);
         /* requests to receive blocks used in the next iteration */
         MPI_Request pf_recv_a_req = MPI_REQUEST_NULL;
         MPI_Request *pf_recv_b_reqs = (MPI_Request *) malloc(sizeof(MPI_Request) * blk_num);
+
         int first_work_id = rank - 1;
-        double *bs_mem, *local_bs, *pf_local_bs, *tmp_local_bs, *pf_local_a, *tmp_local_a;
-        double *org_local_a = local_a;
+        double *pf_mem, *pf_local_a, *tmp_local_a, *original_local_a = local_a;
+        double *local_bs, *pf_local_bs, *tmp_local_bs;
+        int i;
 
         /* buffers to keep multiple local_b */
         MPI_Alloc_mem((2 * blk_num + 1) * BLK_DIM * BLK_DIM * sizeof(double), MPI_INFO_NULL,
-                      &bs_mem);
-        local_bs = bs_mem;
+                      &pf_mem);
+        local_bs = pf_mem;
         pf_local_bs = local_bs + blk_num * BLK_DIM * BLK_DIM;
         pf_local_a = pf_local_bs + blk_num * BLK_DIM * BLK_DIM;
 
         if (first_work_id < work_id_len) {
             /* try to receive A and B that are used in the first iteration */
-            int global_j;
 
             /* prefetch A */
             MPI_Irecv(pf_local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
                       &pf_recv_a_req);
             /* prefetch B */
-            for (global_j = 0; global_j < blk_num; global_j++)
-                MPI_Irecv(&pf_local_bs[global_j * BLK_DIM * BLK_DIM], BLK_DIM * BLK_DIM, MPI_DOUBLE,
-                          0, 0, MPI_COMM_WORLD, &pf_recv_b_reqs[global_j]);
+            for (i = 0; i < blk_num; i++)
+                MPI_Irecv(&pf_local_bs[i * BLK_DIM * BLK_DIM], BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &pf_recv_b_reqs[i]);
         }
 
         for (work_id = first_work_id; work_id < work_id_len; work_id += nprocs - 1) {
-            int global_i = work_id / blk_num;
-            int global_j;
-
             recv_a_req = pf_recv_a_req;
             memcpy(recv_b_reqs, pf_recv_b_reqs, sizeof(MPI_Request) * blk_num);
-            /* swap local_bs and pf_local_bs */
-            tmp_local_bs = local_bs;
-            local_bs = pf_local_bs;
-            pf_local_bs = tmp_local_bs;
             /* swap local_a and pf_local_a */
             tmp_local_a = local_a;
             local_a = pf_local_a;
             pf_local_a = tmp_local_a;
+            /* swap local_bs and pf_local_bs */
+            tmp_local_bs = local_bs;
+            local_bs = pf_local_bs;
+            pf_local_bs = tmp_local_bs;
 
             /* prefetch A and B that will be used in the next iteration */
             if (work_id + nprocs - 1 < work_id_len) {
@@ -136,76 +152,34 @@ int main(int argc, char **argv)
                 MPI_Irecv(pf_local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
                           &pf_recv_a_req);
                 /* prefetch B */
-                for (global_j = 0; global_j < blk_num; global_j++)
-                    MPI_Irecv(&pf_local_bs[global_j * BLK_DIM * BLK_DIM], BLK_DIM * BLK_DIM,
-                              MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &pf_recv_b_reqs[global_j]);
+                for (i = 0; i < blk_num; i++)
+                    MPI_Irecv(&pf_local_bs[i * BLK_DIM * BLK_DIM], BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &pf_recv_b_reqs[i]);
             }
 
             /* wait prefetch request of A */
             MPI_Wait(&recv_a_req, MPI_STATUS_IGNORE);
 
             /* wait prefetch requests of B */
-            for (global_j = 0; global_j < blk_num; global_j++) {
-                MPI_Wait(&recv_b_reqs[global_j], MPI_STATUS_IGNORE);
+            for (i = 0; i < blk_num; i++) {
+                MPI_Wait(&recv_b_reqs[i], MPI_STATUS_IGNORE);
 
-                if (is_zero_local(local_a) ||
-                    is_zero_local(&local_bs[global_j * BLK_DIM * BLK_DIM]))
-                    continue;
+                /* compute Cij += Aik * Bkj */
+                if (is_zero_local(local_a) || is_zero_local(&local_bs[i * BLK_DIM * BLK_DIM])) {
+                    memset(local_c, 0, BLK_DIM * BLK_DIM * sizeof(double));
+                } else {
+                    /* compute only if both local_a and local_b are nonzero */
+                    dgemm(local_a, &local_bs[i * BLK_DIM * BLK_DIM], local_c);
+                }
 
-                /* compute C */
-                dgemm(local_a, &local_bs[global_j * BLK_DIM * BLK_DIM], local_c);
-
-                /* write the result to mat_c */
-                add_local_to_global(mat_c, local_c, mat_dim, global_i, global_j);
-            }
-        }
-        free(recv_b_reqs);
-        free(pf_recv_b_reqs);
-        MPI_Free_mem(bs_mem);
-        local_a = org_local_a;
-    }
-
-    /* accumulate results */
-    if (!rank) {
-        /* sum C computed by workers */
-        char *recv_blks_c = (char *) calloc(nprocs * blk_num, sizeof(char));
-
-        for (work_id = 0; work_id < work_id_len; work_id++) {
-            int target = work_id % (nprocs - 1) + 1;
-            int global_i = work_id / blk_num;
-            int global_j;
-
-            if (recv_blks_c[global_i * nprocs + target] == 1)
-                continue;       /* Cij has been already added */
-
-            for (global_j = 0; global_j < blk_num; global_j++) {
-                /* receive C from target */
-                MPI_Recv(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD,
-                         MPI_STATUS_IGNORE);
-                add_local_to_global(mat_c, local_c, mat_dim, global_i, global_j);
-            }
-            recv_blks_c[global_i * nprocs + target] = 1;
-        }
-        free(recv_blks_c);
-    } else {
-        /* send C to master */
-        char *send_blks_c = (char *) calloc(blk_num, sizeof(char));
-
-        for (work_id = rank - 1; work_id < work_id_len; work_id += nprocs - 1) {
-            int global_i = work_id / blk_num;
-            int global_j;
-
-            if (send_blks_c[global_i] == 1)
-                continue;       /* Cij has been already sent */
-
-            for (global_j = 0; global_j < blk_num; global_j++) {
-                /* send C to master */
-                unpack_local_to_global(local_c, mat_c, mat_dim, global_i, global_j);
+                /* send C */
                 MPI_Send(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
             }
-            send_blks_c[global_i] = 1;
         }
-        free(send_blks_c);
+
+        free(recv_b_reqs);
+        free(pf_recv_b_reqs);
+        MPI_Free_mem(pf_mem);
+        local_a = original_local_a;
     }
 
     t2 = MPI_Wtime();

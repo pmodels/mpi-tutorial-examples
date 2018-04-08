@@ -79,10 +79,8 @@ int main(int argc, char **argv)
         /* receive A and B from master */
         MPI_Recv(mat_a, mat_dim * mat_dim, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         MPI_Recv(mat_b, mat_dim * mat_dim, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-    }
 
-    /* compute Cij += Aik * Bkj */
-    if (rank) {
+        /* compute Cij += Aik * Bkj */
         for (work_id = rank - 1; work_id < work_id_len; work_id += nprocs - 1) {
             int global_i = work_id / blk_num;
             int global_k = work_id % blk_num;
