@@ -29,7 +29,7 @@ int main(int argc, char **argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
 
-	num_threads = omp_get_max_threads();
+    num_threads = omp_get_max_threads();
 
     /* argument checking and setting */
     if (setup(rank, nprocs, argc, argv, &mat_dim)) {
@@ -65,11 +65,11 @@ int main(int argc, char **argv)
         MPI_Win_allocate(0, sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &counter_win_mem,
                          &win_counter);
     }
-	
-	/* allocate local buffer for each thread */
-	MPI_Alloc_mem(3 * BLK_DIM * BLK_DIM * sizeof(double) * num_threads, MPI_INFO_NULL, &local_a);
-	local_b = local_a + BLK_DIM * BLK_DIM * num_threads;
-	local_c = local_b + BLK_DIM * BLK_DIM * num_threads;
+
+    /* allocate local buffer for each thread */
+    MPI_Alloc_mem(3 * BLK_DIM * BLK_DIM * sizeof(double) * num_threads, MPI_INFO_NULL, &local_a);
+    local_b = local_a + BLK_DIM * BLK_DIM * num_threads;
+    local_c = local_b + BLK_DIM * BLK_DIM * num_threads;
 
     /* create block datatype */
     int array_sizes[2] = { mat_dim, mat_dim };
@@ -108,12 +108,12 @@ int main(int argc, char **argv)
     /* create a team of threads with each thread working on a different pair of blocks */
 #pragma omp parallel private(work_id, offset_a, offset_b, offset_c) firstprivate(local_a, local_b, local_c)
     {
-		int tid = omp_get_thread_num();
-		double *local_ta = local_a + BLK_DIM * BLK_DIM * tid; 
-		double *local_tb = local_b + BLK_DIM * BLK_DIM * tid; 
-		double *local_tc = local_c + BLK_DIM * BLK_DIM * tid; 
+        int tid = omp_get_thread_num();
+        double *local_ta = local_a + BLK_DIM * BLK_DIM * tid;
+        double *local_tb = local_b + BLK_DIM * BLK_DIM * tid;
+        double *local_tc = local_c + BLK_DIM * BLK_DIM * tid;
 
-		do {
+        do {
             /* read and increment global counter atomically */
             MPI_Fetch_and_op(&one, &work_id, MPI_INT, 0, 0, MPI_SUM, win_counter);
             MPI_Win_flush(0, win_counter);      /* MEM_MODE: update to target public window */
@@ -169,7 +169,7 @@ int main(int argc, char **argv)
     MPI_Win_unlock(0, win);
 
     MPI_Type_free(&blk_dtp);
-	MPI_Free_mem(local_a);
+    MPI_Free_mem(local_a);
     MPI_Win_free(&win_counter);
     MPI_Win_free(&win);
 
