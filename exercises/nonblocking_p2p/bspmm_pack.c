@@ -64,15 +64,17 @@ int main(int argc, char **argv)
     work_id_len = blk_num * blk_num;
 
     if (!rank) {
-        int iter, niters = (work_id_len + nprocs - 2) / (nprocs - 1);
+        /* distribute A and B and receive results. */
+        int iter;               /* worker proceeds one work unit in each iteration */
+        int niters = (work_id_len + nprocs - 2) / (nprocs - 1); /* max # of work units per worker */
 
         for (iter = 0; iter < niters; iter++) {
             int worker;
-            /* not all workers work in the last iteration */
+            /* not all workers work in the last iteration since # of work units is not uniform */
             int worker_end = iter != niters - 1 ? nprocs : work_id_len - iter * (nprocs - 1) + 1;
             int global_j;
 
-            /* send A to workers */
+            /* send blocks of A to all workers */
             for (worker = 1; worker < worker_end; worker++) {
                 int work_id = iter * (nprocs - 1) + worker - 1;
                 int global_i = work_id / blk_num;
@@ -82,9 +84,9 @@ int main(int argc, char **argv)
                 MPI_Send(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, worker, 0, MPI_COMM_WORLD);
             }
 
-            /* send B to workers and receive C one by one */
+            /* send blocks of B and receive results */
             for (global_j = 0; global_j < blk_num; global_j++) {
-                /* send B */
+                /* send one block of B to each worker */
                 for (worker = 1; worker < worker_end; worker++) {
                     int work_id = iter * (nprocs - 1) + worker - 1;
                     int global_k = work_id % blk_num;
@@ -93,7 +95,10 @@ int main(int argc, char **argv)
                     MPI_Send(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, worker, 0, MPI_COMM_WORLD);
                 }
 
-                /* receive C */
+                /* workers are expected to proceed computation while master is communicating with
+                 * other workers */
+
+                /* receive results from all workers */
                 for (worker = 1; worker < worker_end; worker++) {
                     int work_id = iter * (nprocs - 1) + worker - 1;
                     int global_i = work_id / blk_num;
