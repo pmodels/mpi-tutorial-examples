@@ -63,11 +63,6 @@ int main(int argc, char **argv)
                          &win_counter);
     }
 
-    /* allocate local buffer */
-    MPI_Alloc_mem(3 * BLK_DIM * BLK_DIM * sizeof(double), MPI_INFO_NULL, &local_a);
-    local_b = local_a + BLK_DIM * BLK_DIM;
-    local_c = local_b + BLK_DIM * BLK_DIM;
-
     /* create block datatype */
     int array_sizes[2] = { mat_dim, mat_dim };
     int array_subsizes[2] = { BLK_DIM, BLK_DIM };
