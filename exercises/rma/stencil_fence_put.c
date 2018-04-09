@@ -40,7 +40,7 @@ int main(int argc, char **argv)
 
     int final_flag;
 
-    int grid_size;              /* window size */
+    int grid_size;              /* grid size */
     double *win_mem;            /* window memory */
     MPI_Win win;                /* RMA window */
 
