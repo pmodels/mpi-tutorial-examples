@@ -11,7 +11,7 @@ all: $(BINS)
 %.o: %.c
 	$(MPICC) $(CFLAGS) $< -c -lm -o $@
 
-stencil: stencil.c $(OBJS)
+stencil: stencil.c $(OBJS) $(STENCIL_OBJS)
 	$(MPICC) $(STENCIL_CFLAGS) -o $@ $< $(STENCIL_OBJS) -lm
 
 bspmm_vector: bspmm_vector.c $(BSPMM_OBJS)
