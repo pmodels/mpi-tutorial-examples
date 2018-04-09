@@ -67,38 +67,38 @@ int main(int argc, char **argv)
         int iter, niters = (work_id_len + nprocs - 2) / (nprocs - 1);
 
         for (iter = 0; iter < niters; iter++) {
-            int target;
+            int worker;
             /* not all workers work in the last iteration */
-            int target_end = iter != niters - 1 ? nprocs : work_id_len - iter * (nprocs - 1) + 1;
+            int worker_end = iter != niters - 1 ? nprocs : work_id_len - iter * (nprocs - 1) + 1;
             int global_j;
 
             /* send A to workers */
-            for (target = 1; target < target_end; target++) {
-                int work_id = iter * (nprocs - 1) + target - 1;
+            for (worker = 1; worker < worker_end; worker++) {
+                int work_id = iter * (nprocs - 1) + worker - 1;
                 int global_i = work_id / blk_num;
                 int global_k = work_id % blk_num;
 
                 pack_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
-                MPI_Send(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
+                MPI_Send(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, worker, 0, MPI_COMM_WORLD);
             }
 
             /* send B to workers and receive C one by one */
             for (global_j = 0; global_j < blk_num; global_j++) {
                 /* send B */
-                for (target = 1; target < target_end; target++) {
-                    int work_id = iter * (nprocs - 1) + target - 1;
+                for (worker = 1; worker < worker_end; worker++) {
+                    int work_id = iter * (nprocs - 1) + worker - 1;
                     int global_k = work_id % blk_num;
 
                     pack_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
-                    MPI_Send(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD);
+                    MPI_Send(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, worker, 0, MPI_COMM_WORLD);
                 }
 
                 /* receive C */
-                for (target = 1; target < target_end; target++) {
-                    int work_id = iter * (nprocs - 1) + target - 1;
+                for (worker = 1; worker < worker_end; worker++) {
+                    int work_id = iter * (nprocs - 1) + worker - 1;
                     int global_i = work_id / blk_num;
 
-                    MPI_Recv(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, target, 0, MPI_COMM_WORLD,
+                    MPI_Recv(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, worker, 0, MPI_COMM_WORLD,
                              MPI_STATUS_IGNORE);
                     add_local_to_global(mat_c, local_c, mat_dim, global_i, global_j);
                 }
