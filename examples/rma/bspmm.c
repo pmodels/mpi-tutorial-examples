@@ -45,8 +45,12 @@ int main(int argc, char **argv)
         mat_a = win_mem;
         mat_b = mat_a + mat_dim * mat_dim;
         mat_c = mat_b + mat_dim * mat_dim;
+
         /* initialize matrices */
+        MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, win);
         init_mats(mat_dim, mat_a, mat_b, mat_c);
+        MPI_Win_unlock(0, win); /* update to private window becomes visible
+                                 * in public window */
     } else {
         MPI_Win_allocate(0, sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &win_mem, &win);
     }
@@ -70,7 +74,7 @@ int main(int argc, char **argv)
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    t1 = MPI_Wtime();
+    MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win);
 
     /*
      * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
@@ -86,12 +90,12 @@ int main(int argc, char **argv)
      *   (i, k) = (id / n, id % n)
      * Note Cij must be updated atomically
      */
-
     work_id_len = blk_num * blk_num;
 
-    MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win);
+    t1 = MPI_Wtime();
 
     for (work_id = rank; work_id < work_id_len; work_id += nprocs) {
+        /* calculate global ids from the work_id */
         int global_i = work_id / blk_num;
         int global_k = work_id % blk_num;
         int global_j;
@@ -124,16 +128,16 @@ int main(int argc, char **argv)
         }
     }
 
-    MPI_Win_unlock(0, win);
-
+    MPI_Barrier(MPI_COMM_WORLD);
     t2 = MPI_Wtime();
 
-    MPI_Barrier(MPI_COMM_WORLD);
-
     if (!rank) {
+        MPI_Win_sync(win); /* synchronize private and public window copies */
         check_mats(mat_a, mat_b, mat_c, mat_dim);
         printf("[%i] time: %f\n", rank, t2 - t1);
     }
+
+    MPI_Win_unlock(0, win);
 
     MPI_Type_free(&blk_dtp);
     MPI_Free_mem(local_a);

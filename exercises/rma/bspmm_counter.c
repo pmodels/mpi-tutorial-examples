@@ -40,13 +40,20 @@ int main(int argc, char **argv)
                          MPI_INFO_NULL, MPI_COMM_WORLD, &win_mem, &win);
         MPI_Win_allocate(sizeof(int), sizeof(int),
                          MPI_INFO_NULL, MPI_COMM_WORLD, &counter_win_mem, &win_counter);
-
         mat_a = win_mem;
         mat_b = mat_a + mat_dim * mat_dim;
         mat_c = mat_b + mat_dim * mat_dim;
+
         /* initialize matrices and global counter */
+        MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, win);
         init_mats(mat_dim, mat_a, mat_b, mat_c);
+        MPI_Win_unlock(0, win); /* update to private window becomes visible
+                                 * in public window */
+
+        MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, win_counter);
         *counter_win_mem = 0;
+        MPI_Win_unlock(0, win_counter); /* update to private window becomes visible
+                                         * in public window */
     } else {
         MPI_Win_allocate(0, sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &win_mem, &win);
         MPI_Win_allocate(0, sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &counter_win_mem,
@@ -72,7 +79,8 @@ int main(int argc, char **argv)
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    t1 = MPI_Wtime();
+    MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win);
+    MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win_counter);
 
     /*
      * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
@@ -88,11 +96,9 @@ int main(int argc, char **argv)
      *   (i, k) = (id / n, id % n)
      * Note Cij must be updated atomically
      */
-
     work_id_len = blk_num * blk_num;
 
-    MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win);
-    MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win_counter);
+    t1 = MPI_Wtime();
 
     do {
         /* read and increment global counter atomically */
@@ -134,17 +140,17 @@ int main(int argc, char **argv)
         }
     } while (work_id < work_id_len);
 
-    MPI_Win_unlock(0, win_counter);
-    MPI_Win_unlock(0, win);
-
+    MPI_Barrier(MPI_COMM_WORLD);
     t2 = MPI_Wtime();
 
-    MPI_Barrier(MPI_COMM_WORLD);
-
     if (!rank) {
+        MPI_Win_sync(win); /* synchronize private and public window copies */
         check_mats(mat_a, mat_b, mat_c, mat_dim);
         printf("[%i] time: %f\n", rank, t2 - t1);
     }
+
+    MPI_Win_unlock(0, win_counter);
+    MPI_Win_unlock(0, win);
 
     MPI_Type_free(&blk_dtp);
     MPI_Free_mem(local_a);
