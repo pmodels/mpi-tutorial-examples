@@ -131,8 +131,8 @@ int main(int argc, char **argv)
         }
 
         /* exchange data with neighbors */
-        MPI_Win_post(neighbors_group, 0, win);  /* update to private window becomes
-                                                 * visible in public window */
+        MPI_Win_post(neighbors_group, 0, win);  /* MEM_MODE: update to my private window
+                                                 * becomes visible in public window */
         MPI_Win_start(neighbors_group, 0, win);
 
         offset = grid_size * ((iter + 1) % 2);
@@ -149,7 +149,7 @@ int main(int argc, char **argv)
                 ind(bx + 1, 1) + offset, 1, east_west_type, win);
 
         MPI_Win_complete(win);
-        MPI_Win_wait(win);      /* update to public window becomes visible in private window */
+        MPI_Win_wait(win);      /* MEM_MODE: update to my public window becomes visible in private window */
 
         /* update grid points */
         update_grid(bx, by, aold, anew, &heat);

@@ -115,7 +115,7 @@ int main(int argc, char **argv)
         }
 
         /* exchange data with neighbors */
-        MPI_Win_fence(0, win);  /* synchronize private and public windows */
+        MPI_Win_fence(0, win);  /* MEM_MODE: synchronize private and public windows */
 
         offset = grid_size * ((iter + 1) % 2);
 
@@ -130,7 +130,7 @@ int main(int argc, char **argv)
         MPI_Get(&aold[ind(0, 1)], 1, east_west_type, west,
                 ind(bx, 1) + offset, 1, east_west_type, win);
 
-        MPI_Win_fence(0, win);  /* synchronize private and public windows */
+        MPI_Win_fence(0, win);  /* MEM_MODE: synchronize private and public windows */
 
         /* update grid points */
         update_grid(bx, by, aold, anew, &heat);
