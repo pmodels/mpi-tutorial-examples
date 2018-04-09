@@ -90,7 +90,11 @@ int main(int argc, char **argv)
     /* create RMA window upon working array */
     MPI_Win_allocate(2 * grid_size * sizeof(double), sizeof(double), MPI_INFO_NULL,
                      MPI_COMM_WORLD, &win_mem, &win);
+
+    MPI_Win_lock(MPI_LOCK_EXCLUSIVE, rank, 0, win);
     memset(win_mem, 0, 2 * grid_size * sizeof(double));
+    MPI_Win_unlock(rank, win);  /* MEM_MODE: update to my private window becomes
+                                 * visible in public window */
 
     anew = win_mem;     /* each rank's offset */
     aold = win_mem + grid_size; /* second half is aold! */
@@ -105,23 +109,21 @@ int main(int argc, char **argv)
 
     t1 = MPI_Wtime();   /* take time */
 
+    MPI_Win_lock_all(0, win);
+
     for (iter = 0; iter < niters; ++iter) {
 
         int offset;
 
         /* refresh heat sources */
-        MPI_Win_lock(MPI_LOCK_EXCLUSIVE, rank, 0, win); /* lock myself for local load/store */
         for (i = 0; i < locnsources; ++i) {
             aold[ind(locsources[i][0], locsources[i][1])] += energy;    /* heat source */
         }
-        MPI_Win_unlock(rank, win);      /* update to private window becomes visible
-                                         * in public window */
 
-        MPI_Barrier(MPI_COMM_WORLD);    /* ensure neighbors have refreshed */
+        MPI_Win_sync(win);      /* MEM_MODE: synchronize private and public window copies */
+        MPI_Barrier(MPI_COMM_WORLD);    /* ensure neighbors have completed heat source refreshing */
 
         /* exchange data with neighbors */
-        MPI_Win_lock_all(0, win);
-
         offset = grid_size * ((iter + 1) % 2);
 
         MPI_Put(&aold[ind(1, 1)], bx, MPI_DOUBLE, north,
@@ -135,16 +137,12 @@ int main(int argc, char **argv)
         MPI_Put(&aold[ind(1, 1)], 1, east_west_type, west,
                 ind(bx + 1, 1) + offset, 1, east_west_type, win);
 
-        MPI_Win_unlock_all(win);        /* remote update to target public window is completed */
-
+        MPI_Win_flush_all(win); /* MEM_MODE: data exchange has completed in target public window */
         MPI_Barrier(MPI_COMM_WORLD);    /* ensure neighbors have completed data exchange */
 
         /* update grid points */
-        MPI_Win_lock(MPI_LOCK_EXCLUSIVE, rank, 0, win); /* lock myself for local load/store.
-                                                         * remote update to public window becomes visible
-                                                         * in private window */
+        MPI_Win_sync(win);      /* MEM_MODE: synchronize private and public window copies */
         update_grid(bx, by, aold, anew, &heat);
-        MPI_Win_unlock(rank, win);
 
         /* swap working arrays */
         tmp = anew;
@@ -155,6 +153,8 @@ int main(int argc, char **argv)
         if (iter == niters - 1)
             printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, MPI_COMM_WORLD);
     }
+
+    MPI_Win_unlock_all(win);
 
     t2 = MPI_Wtime();
 
