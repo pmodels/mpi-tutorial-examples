@@ -2,7 +2,7 @@ MPICXX=mpicxx
 MPICC=mpicc
 OBJS=../../common/stencil/printarr_par.o
 CFLAGS= -g -Wall -I../../common/stencil
-BINS=stencil_funneled stencil_multiple_ncomms
+BINS=stencil_funneled stencil_multiple stencil_multiple_ncomms
 
 all: $(BINS)
 
