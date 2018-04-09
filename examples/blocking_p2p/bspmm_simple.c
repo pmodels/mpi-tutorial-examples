@@ -5,7 +5,7 @@ int main(int argc, char **argv)
     int rank, nprocs;
     int mat_dim, blk_num;
     int work_id, work_id_len;
-    double *mat_a = NULL, *mat_b = NULL, *mat_c = NULL, *mat_tmp_c = NULL;
+    double *mat_a, *mat_b, *mat_c, *mat_tmp_c;
     double *local_a, *local_b, *local_c;
 
     double t1, t2;
@@ -32,12 +32,15 @@ int main(int argc, char **argv)
     /* initialize matrices */
     if (!rank) {
         MPI_Alloc_mem(4 * mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mat_a);
-        init_mats(mat_dim, mat_a, &mat_a, &mat_b, &mat_c);
+        mat_b = mat_a + mat_dim * mat_dim;
+        mat_c = mat_b + mat_dim * mat_dim;
         mat_tmp_c = mat_c + mat_dim * mat_dim;
+        init_mats(mat_dim, mat_a, mat_b, mat_c);
     } else {
         MPI_Alloc_mem(3 * mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mat_a);
         mat_b = mat_a + mat_dim * mat_dim;
         mat_c = mat_b + mat_dim * mat_dim;
+        mat_tmp_c = NULL;
         memset(mat_c, 0, mat_dim * mat_dim * sizeof(double));
     }
 
@@ -97,7 +100,7 @@ int main(int argc, char **argv)
                 if (is_zero_local(local_b))
                     continue;
 
-                /* compute only if both local_a and local_b are nonzero */
+                /* compute Cij += Aik * Bkj only if both local_a and local_b are nonzero */
                 dgemm(local_a, local_b, local_c);
 
                 /* write results to mat_c */
@@ -134,6 +137,7 @@ int main(int argc, char **argv)
 
     MPI_Free_mem(local_a);
     MPI_Free_mem(mat_a);
+
     MPI_Finalize();
     return 0;
 }

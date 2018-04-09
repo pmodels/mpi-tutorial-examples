@@ -12,7 +12,7 @@ int main(int argc, char **argv)
     int rank, nprocs;
     int mat_dim, blk_num;
     int work_id, work_id_len;
-    double *mat_a = NULL, *mat_b = NULL, *mat_c = NULL;
+    double *mat_a, *mat_b, *mat_c;
     double *local_a, *local_b, *local_c;
     MPI_Aint disp_a, disp_b, disp_c;
     MPI_Aint offset_a, offset_b, offset_c;
@@ -111,7 +111,7 @@ int main(int argc, char **argv)
             if (is_zero_local(local_b))
                 continue;
 
-            /* compute only if both local_a and local_b are nonzero */
+            /* compute Cij += Aik * Bkj only if both local_a and local_b are nonzero */
             dgemm(local_a, local_b, local_c);
 
             /* accumulate block to mat_c */
@@ -136,6 +136,7 @@ int main(int argc, char **argv)
     MPI_Type_free(&blk_dtp);
     MPI_Free_mem(local_a);
     MPI_Win_free(&win);
+
     MPI_Finalize();
     return 0;
 }
