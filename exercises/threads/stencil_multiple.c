@@ -146,20 +146,20 @@ int main(int argc, char **argv)
                           north, thread_id, MPI_COMM_WORLD, &north_reqs[1]);
                 MPI_Waitall(2, north_reqs, MPI_STATUSES_IGNORE);
             }
-            /* any tag can be used for east-west exchange because at most only two threads
-             * communicate with west and east (west != east or both are MPI_PROC_NULL) */
+            /* use nthreads as a tag for west-to-east communication and nthreads+1 for east-to-west
+             * because the two sides are assigned to threads that have different ids */
             if ((west >= 0) && (xstart == 1)) {
                 MPI_Isend(&aold[ind(1, 1)] /* west */ , 1, east_west_type,
-                          west, 0, MPI_COMM_WORLD, &west_reqs[0]);
+                          west, nthreads + 1, MPI_COMM_WORLD, &west_reqs[0]);
                 MPI_Irecv(&aold[ind(0, 1)] /* east */ , 1, east_west_type,
-                          west, 0, MPI_COMM_WORLD, &west_reqs[1]);
+                          west, nthreads, MPI_COMM_WORLD, &west_reqs[1]);
                 MPI_Waitall(2, west_reqs, MPI_STATUSES_IGNORE);
             }
             if ((east >= 0) && (xend == bx + 1)) {
                 MPI_Isend(&aold[ind(bx, 1)] /* east */ , 1, east_west_type,
-                          east, 0, MPI_COMM_WORLD, &east_reqs[0]);
+                          east, nthreads, MPI_COMM_WORLD, &east_reqs[0]);
                 MPI_Irecv(&aold[ind(bx + 1, 1)] /* west */ , 1, east_west_type,
-                          east, 0, MPI_COMM_WORLD, &east_reqs[1]);
+                          east, nthreads + 1, MPI_COMM_WORLD, &east_reqs[1]);
                 MPI_Waitall(2, east_reqs, MPI_STATUSES_IGNORE);
             }
 
