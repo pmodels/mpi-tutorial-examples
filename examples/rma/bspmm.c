@@ -132,7 +132,7 @@ int main(int argc, char **argv)
     t2 = MPI_Wtime();
 
     if (!rank) {
-        MPI_Win_sync(win); /* synchronize private and public window copies */
+        MPI_Win_sync(win);      /* synchronize private and public window copies */
         check_mats(mat_a, mat_b, mat_c, mat_dim);
         printf("[%i] time: %f\n", rank, t2 - t1);
     }
