@@ -5,7 +5,7 @@ int main(int argc, char **argv)
     int rank, nprocs;
     int mat_dim, blk_num;
     int work_id, work_id_len;
-    double *mat_a = NULL, *mat_b = NULL, *mat_c = NULL;
+    double *mat_a, *mat_b, *mat_c;
     double *local_a, *local_b, *local_c;
 
     double t1, t2;
@@ -104,70 +104,67 @@ int main(int argc, char **argv)
         }
     } else {
         /* receive A and B from master and return result */
-        /* requests to receive blocks used in the current iteration */
-        MPI_Request recv_a_req = MPI_REQUEST_NULL;
-        MPI_Request *recv_b_reqs = (MPI_Request *) malloc(sizeof(MPI_Request) * blk_num);
-        /* requests to receive blocks used in the next iteration */
-        MPI_Request pf_recv_a_req = MPI_REQUEST_NULL;
-        MPI_Request *pf_recv_b_reqs = (MPI_Request *) malloc(sizeof(MPI_Request) * blk_num);
 
-        int first_work_id = rank - 1;
+        /* requests to receive prefetched blocks */
+        MPI_Request recv_a_req = MPI_REQUEST_NULL, pf_recv_a_req = MPI_REQUEST_NULL;
+        MPI_Request *pf_b_reqs, *recv_b_reqs, *pf_recv_b_reqs;
+
+        pf_b_reqs = (MPI_Request *) malloc(sizeof(MPI_Request) * blk_num * 2);
+        recv_b_reqs = pf_b_reqs;
+        pf_recv_b_reqs = &pf_b_reqs[blk_num];
+
+        /* buffers to keep prefetched blocks */
         double *pf_mem, *pf_local_a, *tmp_local_a, *original_local_a = local_a;
         double *local_bs, *pf_local_bs, *tmp_local_bs;
-        int i;
 
-        /* buffers to keep multiple local_b */
         MPI_Alloc_mem((2 * blk_num + 1) * BLK_DIM * BLK_DIM * sizeof(double), MPI_INFO_NULL,
                       &pf_mem);
         local_bs = pf_mem;
         pf_local_bs = local_bs + blk_num * BLK_DIM * BLK_DIM;
         pf_local_a = pf_local_bs + blk_num * BLK_DIM * BLK_DIM;
 
-        if (first_work_id < work_id_len) {
-            /* try to receive A and B that are used in the first iteration */
+        int first_work_id = rank - 1;
+        int i;
 
-            /* prefetch A */
+        /* prefetch blocks of A and B that are used in the first iteration */
+        if (first_work_id < work_id_len) {
             MPI_Irecv(pf_local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
                       &pf_recv_a_req);
-            /* prefetch B */
             for (i = 0; i < blk_num; i++)
-                MPI_Irecv(&pf_local_bs[i * BLK_DIM * BLK_DIM], BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &pf_recv_b_reqs[i]);
+                MPI_Irecv(&pf_local_bs[i * BLK_DIM * BLK_DIM], BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0,
+                          MPI_COMM_WORLD, &pf_recv_b_reqs[i]);
         }
 
         for (work_id = first_work_id; work_id < work_id_len; work_id += nprocs - 1) {
+            /* swap working local buffers and requests */
             recv_a_req = pf_recv_a_req;
             memcpy(recv_b_reqs, pf_recv_b_reqs, sizeof(MPI_Request) * blk_num);
-            /* swap local_a and pf_local_a */
             tmp_local_a = local_a;
             local_a = pf_local_a;
             pf_local_a = tmp_local_a;
-            /* swap local_bs and pf_local_bs */
             tmp_local_bs = local_bs;
             local_bs = pf_local_bs;
             pf_local_bs = tmp_local_bs;
 
-            /* prefetch A and B that will be used in the next iteration */
+            /* prefetch blocks of A and B that will be used in the next iteration */
             if (work_id + nprocs - 1 < work_id_len) {
-                /* prefetch A */
                 MPI_Irecv(pf_local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
                           &pf_recv_a_req);
-                /* prefetch B */
                 for (i = 0; i < blk_num; i++)
-                    MPI_Irecv(&pf_local_bs[i * BLK_DIM * BLK_DIM], BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD, &pf_recv_b_reqs[i]);
+                    MPI_Irecv(&pf_local_bs[i * BLK_DIM * BLK_DIM], BLK_DIM * BLK_DIM, MPI_DOUBLE, 0,
+                              0, MPI_COMM_WORLD, &pf_recv_b_reqs[i]);
             }
 
-            /* wait prefetch request of A */
+            /* wait prefetched blocks */
             MPI_Wait(&recv_a_req, MPI_STATUS_IGNORE);
 
-            /* wait prefetch requests of B */
             for (i = 0; i < blk_num; i++) {
                 MPI_Wait(&recv_b_reqs[i], MPI_STATUS_IGNORE);
 
-                /* compute Cij += Aik * Bkj */
+                /* compute Cij += Aik * Bkj only if both local_a and local_b are nonzero */
                 if (is_zero_local(local_a) || is_zero_local(&local_bs[i * BLK_DIM * BLK_DIM])) {
                     memset(local_c, 0, BLK_DIM * BLK_DIM * sizeof(double));
                 } else {
-                    /* compute only if both local_a and local_b are nonzero */
                     dgemm(local_a, &local_bs[i * BLK_DIM * BLK_DIM], local_c);
                 }
 
@@ -176,8 +173,7 @@ int main(int argc, char **argv)
             }
         }
 
-        free(recv_b_reqs);
-        free(pf_recv_b_reqs);
+        free(pf_b_reqs);
         MPI_Free_mem(pf_mem);
         local_a = original_local_a;
     }
