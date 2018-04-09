@@ -109,13 +109,11 @@ int main(int argc, char **argv)
 
         /* requests to receive prefetched blocks */
         MPI_Request recv_a_req = MPI_REQUEST_NULL, pf_recv_a_req = MPI_REQUEST_NULL;
-        MPI_Request *pf_b_reqs, *recv_b_reqs, *pf_recv_b_reqs, *send_c_reqs;
+        MPI_Request *pf_b_reqs, *recv_b_reqs, *pf_recv_b_reqs;
 
-        pf_b_reqs = (MPI_Request *) malloc(sizeof(MPI_Request) *
-                                           (blk_num * 2 + work_id_len * blk_num));
+        pf_b_reqs = (MPI_Request *) malloc(sizeof(MPI_Request) * blk_num * 2);
         recv_b_reqs = pf_b_reqs;
         pf_recv_b_reqs = &pf_b_reqs[blk_num];
-        send_c_reqs = &pf_b_reqs[blk_num * 2];
 
         /* buffers to keep prefetched blocks */
         double *pf_mem, *pf_local_a, *tmp_local_a, *original_local_a = local_a;
@@ -128,7 +126,7 @@ int main(int argc, char **argv)
         pf_local_a = pf_local_bs + blk_num * BLK_DIM * BLK_DIM;
 
         int first_work_id = rank - 1;
-        int i, ncreqs = 0;
+        int i;
 
         /* prefetch blocks of A and B that are used in the first iteration */
         if (first_work_id < work_id_len) {
@@ -173,13 +171,9 @@ int main(int argc, char **argv)
                 }
 
                 /* send C */
-                MPI_Isend(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD,
-                          &send_c_reqs[ncreqs++]);
+                MPI_Send(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, 0, MPI_COMM_WORLD);
             }
         }
-
-        /* complete C submission */
-        MPI_Waitall(ncreqs, send_c_reqs, MPI_STATUS_IGNORE);
 
         free(pf_b_reqs);
         MPI_Free_mem(pf_mem);
