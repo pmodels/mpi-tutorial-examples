@@ -42,9 +42,11 @@ int main(int argc, char **argv)
         /* create RMA window */
         MPI_Win_allocate(3 * mat_dim * mat_dim * sizeof(double), sizeof(double),
                          MPI_INFO_NULL, MPI_COMM_WORLD, &win_mem, &win);
-
+        mat_a = win_mem;
+        mat_b = mat_a + mat_dim * mat_dim;
+        mat_c = mat_b + mat_dim * mat_dim;
         /* initialize matrices */
-        init_mats(mat_dim, win_mem, &mat_a, &mat_b, &mat_c);
+        init_mats(mat_dim, mat_a, mat_b, mat_c);
     } else {
         MPI_Win_allocate(0, sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &win_mem, &win);
     }
