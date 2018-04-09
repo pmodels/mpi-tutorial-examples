@@ -35,7 +35,7 @@ int main(int argc, char **argv)
     blk_num = mat_dim / BLK_DIM;
 
     if (!rank) {
-        /* create RMA window */
+        /* create RMA windows */
         MPI_Win_allocate(3 * mat_dim * mat_dim * sizeof(double), sizeof(double),
                          MPI_INFO_NULL, MPI_COMM_WORLD, &win_mem, &win);
         MPI_Win_allocate(sizeof(int), sizeof(int),
