@@ -181,6 +181,7 @@ int main(int argc, char **argv)
     free(recv_start_indices);
 
     MPI_Finalize();
+    return 0;
 }
 
 void setup(int rank, int proc, int argc, char **argv,
