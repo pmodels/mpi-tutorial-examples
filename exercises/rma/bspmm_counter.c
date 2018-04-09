@@ -1,10 +1,3 @@
-/*
- * Copyright (c) 2014 Xin Zhao. All rights reserved.
- *
- * Author(s): Xin Zhao <xinzhao3@illinois.edu>
- *
- */
-
 #include "bspmm.h"
 
 int main(int argc, char **argv)
@@ -47,6 +40,7 @@ int main(int argc, char **argv)
                          MPI_INFO_NULL, MPI_COMM_WORLD, &win_mem, &win);
         MPI_Win_allocate(sizeof(int), sizeof(int),
                          MPI_INFO_NULL, MPI_COMM_WORLD, &counter_win_mem, &win_counter);
+
         mat_a = win_mem;
         mat_b = mat_a + mat_dim * mat_dim;
         mat_c = mat_b + mat_dim * mat_dim;
