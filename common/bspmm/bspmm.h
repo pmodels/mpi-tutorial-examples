@@ -15,8 +15,7 @@
 #define RAND_RANGE 10
 
 int setup(int rank, int nprocs, int argc, char **argv, int *mat_dim_ptr);
-void init_mats(int mat_dim, double *mem, double **mat_a_ptr, double **mat_b_ptr,
-               double **mat_c_ptr);
+void init_mats(int mat_dim, double *mat_a, double *mat_b, double *mat_c);
 void dgemm(double *local_a, double *local_b, double *local_c);
 int is_zero_local(double *local_mat);
 int is_zero_global(double *global_mat, int mat_dim, int global_i, int global_j);

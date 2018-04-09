@@ -32,7 +32,9 @@ int main(int argc, char **argv)
     /* initialize matrices */
     if (!rank) {
         MPI_Alloc_mem(3 * mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mat_a);
-        init_mats(mat_dim, mat_a, &mat_a, &mat_b, &mat_c);
+        mat_b = mat_a + mat_dim * mat_dim;
+        mat_c = mat_b + mat_dim * mat_dim;
+        init_mats(mat_dim, mat_a, mat_b, mat_c);
     }
 
     /* allocate local buffer */
@@ -188,7 +190,10 @@ int main(int argc, char **argv)
     }
 
     MPI_Free_mem(local_a);
-    MPI_Free_mem(mat_a);
+    if (!rank) {
+        MPI_Free_mem(mat_a);
+    }
+
     MPI_Finalize();
     return 0;
 }

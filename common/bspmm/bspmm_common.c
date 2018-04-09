@@ -23,16 +23,11 @@ int setup(int rank, int nprocs, int argc, char **argv, int *mat_dim_ptr)
     return 0;
 }
 
-void init_mats(int mat_dim, double *mem, double **mat_a_ptr, double **mat_b_ptr, double **mat_c_ptr)
+void init_mats(int mat_dim, double *mat_a, double *mat_b, double *mat_c)
 {
     int i, j, bi, bj;
-    double *mat_a, *mat_b, *mat_c;
 
     srand(time(NULL));
-
-    mat_a = mem;
-    mat_b = mat_a + mat_dim * mat_dim;
-    mat_c = mat_b + mat_dim * mat_dim;
 
     for (bj = 0; bj < mat_dim; bj += BLK_DIM) {
         for (bi = 0; bi < mat_dim; bi += BLK_DIM) {
@@ -56,12 +51,10 @@ void init_mats(int mat_dim, double *mem, double **mat_a_ptr, double **mat_b_ptr,
                     for (i = bi; i < bi + BLK_DIM; i++)
                         mat_b[j + i * mat_dim] = (double) rand() / (RAND_MAX / RAND_RANGE + 1);
             }
-            mat_c[j + i * mat_dim] = 0.0;
         }
     }
-    (*mat_a_ptr) = mat_a;
-    (*mat_b_ptr) = mat_b;
-    (*mat_c_ptr) = mat_c;
+    /* reset mat_c */
+    memset(mat_c, 0, sizeof(double) * mat_dim * mat_dim);
 }
 
 void dgemm(double *local_a, double *local_b, double *local_c)
