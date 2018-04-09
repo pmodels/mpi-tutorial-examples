@@ -47,13 +47,13 @@ int main(int argc, char **argv)
         /* initialize matrices and global counter */
         MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, win);
         init_mats(mat_dim, mat_a, mat_b, mat_c);
-        MPI_Win_unlock(0, win); /* update to private window becomes visible
-                                 * in public window */
+        MPI_Win_unlock(0, win); /* MEM_MODE: update to my private window becomes
+                                 * visible in public window */
 
         MPI_Win_lock(MPI_LOCK_EXCLUSIVE, 0, 0, win_counter);
         *counter_win_mem = 0;
-        MPI_Win_unlock(0, win_counter); /* update to private window becomes visible
-                                         * in public window */
+        MPI_Win_unlock(0, win_counter); /* MEM_MODE: update to my private window becomes
+                                         * visible in public window */
     } else {
         MPI_Win_allocate(0, sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &win_mem, &win);
         MPI_Win_allocate(0, sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &counter_win_mem,
@@ -103,7 +103,7 @@ int main(int argc, char **argv)
     do {
         /* read and increment global counter atomically */
         MPI_Fetch_and_op(&one, &work_id, MPI_INT, 0, 0, MPI_SUM, win_counter);
-        MPI_Win_flush(0, win_counter);
+        MPI_Win_flush(0, win_counter);  /* MEM_MODE: update to target public window */
         if (work_id >= work_id_len)
             break;
 
@@ -115,7 +115,7 @@ int main(int argc, char **argv)
         /* get block from mat_a */
         offset_a = global_i * BLK_DIM * mat_dim + global_k * BLK_DIM;
         MPI_Get(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, disp_a + offset_a, 1, blk_dtp, win);
-        MPI_Win_flush(0, win);
+        MPI_Win_flush(0, win);  /* MEM_MODE: get from target public window */
 
         if (is_zero_local(local_a))
             continue;
@@ -124,7 +124,7 @@ int main(int argc, char **argv)
             /* get block from mat_b */
             offset_b = global_k * BLK_DIM * mat_dim + global_j * BLK_DIM;
             MPI_Get(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, disp_b + offset_b, 1, blk_dtp, win);
-            MPI_Win_flush(0, win);
+            MPI_Win_flush(0, win);      /* MEM_MODE: get from target public window */
 
             if (is_zero_local(local_b))
                 continue;
@@ -136,7 +136,7 @@ int main(int argc, char **argv)
             offset_c = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
             MPI_Accumulate(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, 0, disp_c + offset_c, 1, blk_dtp,
                            MPI_SUM, win);
-            MPI_Win_flush(0, win);
+            MPI_Win_flush(0, win);      /* MEM_MODE: update to target public window */
         }
     } while (work_id < work_id_len);
 
@@ -144,7 +144,7 @@ int main(int argc, char **argv)
     t2 = MPI_Wtime();
 
     if (!rank) {
-        MPI_Win_sync(win);      /* synchronize private and public window copies */
+        MPI_Win_sync(win);      /* MEM_MODE: synchronize private and public window copies */
         check_mats(mat_a, mat_b, mat_c, mat_dim);
         printf("[%i] time: %f\n", rank, t2 - t1);
     }
