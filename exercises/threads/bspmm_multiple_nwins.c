@@ -178,8 +178,6 @@ int main(int argc, char **argv)
 
     if (!rank) {
         MPI_Win_sync(win_c);    /* MEM_MODE: synchronize private and public window copies */
-        for (tid = 0; tid < num_threads; tid++)
-            MPI_Win_sync(wins_ab[tid]);
         check_mats(mat_a, mat_b, mat_c, mat_dim);
         printf("[%i] time: %f\n", rank, t2 - t1);
     }
@@ -191,10 +189,12 @@ int main(int argc, char **argv)
 
     MPI_Type_free(&blk_dtp);
     MPI_Free_mem(local_a);
+    MPI_Free_mem(mats_ab);
     MPI_Win_free(&win_counter);
     MPI_Win_free(&win_c);
     for (tid = 0; tid < num_threads; tid++)
         MPI_Win_free(&wins_ab[tid]);
+    free(wins_ab);
 
     MPI_Finalize();
     return 0;
