@@ -45,13 +45,19 @@ static void merge(int *a, int numel_a, int *b, int numel_b)
 
 int main(int argc, char **argv)
 {
-    int rank, data[NUM_ELEMENTS];
+    int rank, size, data[NUM_ELEMENTS];
     MPI_Init(&argc, &argv);
 
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    if (size != 2) {
+        printf("Please run with exactly 2 ranks\n");
+        MPI_Finalize();
+        exit(0);
+    }
 
-	int first_half = floor( (double) NUM_ELEMENTS / 2);
-	int second_half = NUM_ELEMENTS - first_half;
+    int first_half = floor((double) NUM_ELEMENTS / 2);
+    int second_half = NUM_ELEMENTS - first_half;
 
     srand(time(NULL));
 
@@ -71,8 +77,7 @@ int main(int argc, char **argv)
         qsort(data, first_half, sizeof(int), compare_int);
 
         /* receive sorted second half of the data */
-        MPI_Recv(&data[first_half], second_half, MPI_INT, 1, 0, MPI_COMM_WORLD,
-                 MPI_STATUS_IGNORE);
+        MPI_Recv(&data[first_half], second_half, MPI_INT, 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
         /* merge the two sorted halves (using sort on the whole array) */
         merge(data, first_half, &data[first_half], second_half);
