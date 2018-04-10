@@ -102,6 +102,8 @@ int main(int argc, char **argv)
 
     MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win_c);
     MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win_counter);
+    for (tid = 0; tid < num_threads; tid++)
+        MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, wins_ab[tid]);
 
     /*
      * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
@@ -127,8 +129,6 @@ int main(int argc, char **argv)
         double *local_ta = local_a + BLK_DIM * BLK_DIM * tid;
         double *local_tb = local_b + BLK_DIM * BLK_DIM * tid;
         double *local_tc = local_c + BLK_DIM * BLK_DIM * tid;
-
-        MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, wins_ab[tid]);
 
         do {
             /* read and increment global counter atomically */
