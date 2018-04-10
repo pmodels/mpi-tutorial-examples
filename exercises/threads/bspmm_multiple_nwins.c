@@ -77,8 +77,7 @@ int main(int argc, char **argv)
         MPI_Win_allocate(0, sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &counter_win_mem,
                          &win_counter);
         for (tid = 0; tid < num_threads; tid++)
-            MPI_Win_create(mats_ab, 0, sizeof(double),
-                           MPI_INFO_NULL, MPI_COMM_WORLD, &wins_ab[tid]);
+            MPI_Win_create(NULL, 0, sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &wins_ab[tid]);
     }
 
     /* allocate local buffer for each thread */
