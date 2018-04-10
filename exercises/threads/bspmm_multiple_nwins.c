@@ -40,12 +40,12 @@ int main(int argc, char **argv)
     /* number of blocks in one dimension */
     blk_num = mat_dim / BLK_DIM;
 
-    /* allocate RMA memory for matrices a and b */
-    MPI_Alloc_mem(2 * mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mats_ab);
     /* allocate RMA windows for matrices a and b; separate window for each thread */
     wins_ab = malloc(sizeof(MPI_Win) * num_threads);
 
     if (!rank) {
+        /* allocate RMA memory for matrices a and b */
+        MPI_Alloc_mem(2 * mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mats_ab);
         /* allocate and create RMA windows for matrix C and global counter */
         MPI_Win_allocate(mat_dim * mat_dim * sizeof(double), sizeof(double),
                          MPI_INFO_NULL, MPI_COMM_WORLD, &win_c_mem, &win_c);
@@ -188,7 +188,8 @@ int main(int argc, char **argv)
 
     MPI_Type_free(&blk_dtp);
     MPI_Free_mem(local_a);
-    MPI_Free_mem(mats_ab);
+    if (!rank)
+        MPI_Free_mem(mats_ab);
     MPI_Win_free(&win_counter);
     MPI_Win_free(&win_c);
     for (tid = 0; tid < num_threads; tid++)
