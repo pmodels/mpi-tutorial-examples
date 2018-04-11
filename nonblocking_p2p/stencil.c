@@ -235,21 +235,21 @@ void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr,
     double *rbufnorth, *rbufsouth, *rbufeast, *rbufwest;
 
     /* allocate two working arrays */
-    MPI_Alloc_mem((bx + 2) * (by + 2) * sizeof(double), MPI_INFO_NULL, &aold);  /* 1-wide halo zones! */
-    MPI_Alloc_mem((bx + 2) * (by + 2) * sizeof(double), MPI_INFO_NULL, &anew);  /* 1-wide halo zones! */
+    anew = (double *)((bx + 2) * (by + 2) * sizeof(double));  /* 1-wide halo zones! */
+    aold = (double *)((bx + 2) * (by + 2) * sizeof(double));  /* 1-wide halo zones! */
 
     memset(aold, 0, (bx + 2) * (by + 2) * sizeof(double));
     memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));
 
     /* allocate communication buffers */
-    MPI_Alloc_mem(bx * sizeof(double), MPI_INFO_NULL, &sbufnorth);      /* send buffers */
-    MPI_Alloc_mem(bx * sizeof(double), MPI_INFO_NULL, &sbufsouth);
-    MPI_Alloc_mem(by * sizeof(double), MPI_INFO_NULL, &sbufeast);
-    MPI_Alloc_mem(by * sizeof(double), MPI_INFO_NULL, &sbufwest);
-    MPI_Alloc_mem(bx * sizeof(double), MPI_INFO_NULL, &rbufnorth);      /* receive buffers */
-    MPI_Alloc_mem(bx * sizeof(double), MPI_INFO_NULL, &rbufsouth);
-    MPI_Alloc_mem(by * sizeof(double), MPI_INFO_NULL, &rbufeast);
-    MPI_Alloc_mem(by * sizeof(double), MPI_INFO_NULL, &rbufwest);
+    sbufnorth = (double *) malloc(bx * sizeof(double));      /* send buffers */
+    sbufsouth = (double *) malloc(bx * sizeof(double));
+    sbufeast = (double *) malloc(by * sizeof(double));
+    sbufwest = (double *) malloc(by * sizeof(double));
+    rbufnorth = (double *) malloc(bx * sizeof(double));      /* receive buffers */
+    rbufsouth = (double *) malloc(bx * sizeof(double));
+    rbufeast = (double *) malloc(by * sizeof(double));
+    rbufwest = (double *) malloc(by * sizeof(double));
 
     memset(sbufnorth, 0, bx * sizeof(double));
     memset(sbufsouth, 0, bx * sizeof(double));
@@ -277,16 +277,16 @@ void free_bufs(double *aold, double *anew,
                double *sbufeast, double *sbufwest,
                double *rbufnorth, double *rbufsouth, double *rbufeast, double *rbufwest)
 {
-    MPI_Free_mem(aold);
-    MPI_Free_mem(anew);
-    MPI_Free_mem(sbufnorth);
-    MPI_Free_mem(sbufsouth);
-    MPI_Free_mem(sbufeast);
-    MPI_Free_mem(sbufwest);
-    MPI_Free_mem(rbufnorth);
-    MPI_Free_mem(rbufsouth);
-    MPI_Free_mem(rbufeast);
-    MPI_Free_mem(rbufwest);
+    free(aold);
+    free(anew);
+    free(sbufnorth);
+    free(sbufsouth);
+    free(sbufeast);
+    free(sbufwest);
+    free(rbufnorth);
+    free(rbufsouth);
+    free(rbufeast);
+    free(rbufwest);
 }
 
 void pack_data(int bx, int by, double *aold,

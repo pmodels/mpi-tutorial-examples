@@ -145,8 +145,8 @@ int main(int argc, char **argv)
     t2 = MPI_Wtime();
 
     /* free working arrays and communication buffers */
-    MPI_Free_mem(aold);
-    MPI_Free_mem(anew);
+    free(aold);
+    free(anew);
 
     MPI_Type_free(&east_west_type);
     MPI_Type_free(&north_south_type);
