@@ -16,7 +16,7 @@ static int compare_int(const void *a, const void *b)
  * Length of a[] must be sum of lengths of a[] and b[] */
 static void merge(int *a, int numel_a, int *b, int numel_b)
 {
-    int *sorted = malloc((numel_a + numel_b) * sizeof *a);
+    int *sorted = (int *) malloc((numel_a + numel_b) * sizeof *a);
     int i, a_i = 0, b_i = 0;
     /* merge a[] and b[] into sorted[] */
     for (i = 0; i < (numel_a + numel_b); i++) {

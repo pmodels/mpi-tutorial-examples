@@ -31,13 +31,13 @@ int main(int argc, char **argv)
 
     /* initialize matrices */
     if (!rank) {
-        MPI_Alloc_mem(4 * mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mat_a);
+        mat_a = (double *) malloc(4 * mat_dim * mat_dim * sizeof(double));
         mat_b = mat_a + mat_dim * mat_dim;
         mat_c = mat_b + mat_dim * mat_dim;
         mat_tmp_c = mat_c + mat_dim * mat_dim;
         init_mats(mat_dim, mat_a, mat_b, mat_c);
     } else {
-        MPI_Alloc_mem(3 * mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mat_a);
+        mat_a = (double *) malloc(3 * mat_dim * mat_dim * sizeof(double));
         mat_b = mat_a + mat_dim * mat_dim;
         mat_c = mat_b + mat_dim * mat_dim;
         mat_tmp_c = NULL;
@@ -45,7 +45,7 @@ int main(int argc, char **argv)
     }
 
     /* allocate local buffer */
-    MPI_Alloc_mem(3 * BLK_DIM * BLK_DIM * sizeof(double), MPI_INFO_NULL, &local_a);
+    local_a = (double *) malloc(3 * BLK_DIM * BLK_DIM * sizeof(double));
     local_b = local_a + BLK_DIM * BLK_DIM;
     local_c = local_b + BLK_DIM * BLK_DIM;
 
@@ -135,8 +135,8 @@ int main(int argc, char **argv)
         printf("[%i] time: %f\n", rank, t2 - t1);
     }
 
-    MPI_Free_mem(local_a);
-    MPI_Free_mem(mat_a);
+    free(local_a);
+    free(mat_a);
 
     MPI_Finalize();
     return 0;
