@@ -67,7 +67,7 @@ int main(int argc, char **argv)
     }
 
     /* allocate local buffer for each thread */
-    local_a = malloc(3 * BLK_DIM * BLK_DIM * sizeof(double));
+    local_a = (double *) malloc(3 * BLK_DIM * BLK_DIM * sizeof(double));
     local_b = local_a + BLK_DIM * BLK_DIM * num_threads;
     local_c = local_b + BLK_DIM * BLK_DIM * num_threads;
 

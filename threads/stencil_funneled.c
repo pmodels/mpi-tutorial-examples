@@ -84,8 +84,8 @@ int main(int argc, char **argv)
     /* printf("%i (%i,%i) - w: %i, e: %i, n: %i, s: %i\n", rank, ry,rx,west,east,north,south); */
 
     /* allocate working arrays & communication buffers */
-    aold = malloc((bx + 2) * (by + 2) * sizeof(double));  /* 1-wide halo zones! */
-    anew = malloc(((bx + 2) * (by + 2) * sizeof(double));  /* 1-wide halo zones! */
+    aold = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));  /* 1-wide halo zones! */
+    anew = (double *) malloc(((bx + 2) * (by + 2) * sizeof(double));  /* 1-wide halo zones! */
 
     memset(aold, 0, (bx + 2) * (by + 2) * sizeof(double));
     memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));

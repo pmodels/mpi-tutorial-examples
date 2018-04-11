@@ -91,13 +91,13 @@ int main(int argc, char **argv)
     Thx = bx / nthreads;
 
     /* duplicate as many comm_world communicators as number of threads */
-    world_comms = malloc(sizeof(MPI_Comm) * nthreads);
+    world_comms = (MPI_Comm *) malloc(sizeof(MPI_Comm) * nthreads);
     for (i = 0; i < nthreads; i++)
         MPI_Comm_dup(MPI_COMM_WORLD, &world_comms[i]);
 
     /* allocate working arrays & communication buffers */
-    aold = malloc((bx + 2) * (by + 2) * sizeof(double));  /* 1-wide halo zones! */
-    anew = malloc((bx + 2) * (by + 2) * sizeof(double));  /* 1-wide halo zones! */
+    aold = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));  /* 1-wide halo zones! */
+    anew = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));  /* 1-wide halo zones! */
 
     memset(aold, 0, (bx + 2) * (by + 2) * sizeof(double));
     memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));
