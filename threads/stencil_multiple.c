@@ -90,8 +90,8 @@ int main(int argc, char **argv)
     Thx = bx / nthreads;
 
     /* allocate working arrays & communication buffers */
-    MPI_Alloc_mem((bx + 2) * (by + 2) * sizeof(double), MPI_INFO_NULL, &aold);  /* 1-wide halo zones! */
-    MPI_Alloc_mem((bx + 2) * (by + 2) * sizeof(double), MPI_INFO_NULL, &anew);  /* 1-wide halo zones! */
+    aold = malloc((bx + 2) * (by + 2) * sizeof(double));  /* 1-wide halo zones! */
+    anew = malloc((bx + 2) * (by + 2) * sizeof(double));  /* 1-wide halo zones! */
 
     memset(aold, 0, (bx + 2) * (by + 2) * sizeof(double));
     memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));
@@ -189,8 +189,8 @@ int main(int argc, char **argv)
     t2 = MPI_Wtime();
 
     /* free working arrays and communication buffers */
-    MPI_Free_mem(aold);
-    MPI_Free_mem(anew);
+    free(aold);
+    free(anew);
 
     MPI_Type_free(&east_west_type);
 
