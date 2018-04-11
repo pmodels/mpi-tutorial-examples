@@ -19,6 +19,10 @@ int main(int argc, char **argv)
     /* color evens and odds */
     color = (rank % 2 == 0);
     MPI_Comm_split(MPI_COMM_WORLD, color, 0, &split_comm);
+    if (color == 1)
+        MPI_Comm_set_name(split_comm, "Even Comm");
+    else
+        MPI_Comm_set_name(split_comm, "Odd Comm");
 
     MPI_Comm_rank(split_comm, &split_rank);
     MPI_Comm_size(split_comm, &split_size);
