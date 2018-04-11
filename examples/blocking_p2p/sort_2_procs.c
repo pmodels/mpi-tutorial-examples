@@ -59,7 +59,7 @@ int main(int argc, char **argv)
     int first_half = floor((double) NUM_ELEMENTS / 2);
     int second_half = NUM_ELEMENTS - first_half;
 
-    srand(time(NULL));
+    srand(0);
 
     if (rank == 0) {
         /* prepare data and display it */

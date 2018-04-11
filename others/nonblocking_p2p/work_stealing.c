@@ -35,7 +35,7 @@ int main(int argc, char **argv)
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
-    srand(time(NULL));
+    srand(0);
 
     /* rank N has approx. (100 * N / (0 + 2 + ... + size - 1)) elements */
     local_data_len =

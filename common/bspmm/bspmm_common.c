@@ -27,7 +27,7 @@ void init_mats(int mat_dim, double *mat_a, double *mat_b, double *mat_c)
 {
     int i, j, bi, bj;
 
-    srand(time(NULL));
+    srand(0);
 
     for (bj = 0; bj < mat_dim; bj += BLK_DIM) {
         for (bi = 0; bi < mat_dim; bi += BLK_DIM) {

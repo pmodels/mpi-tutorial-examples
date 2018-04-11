@@ -192,7 +192,7 @@ void init_mats(int mat_dim, double *win_mem,
     int i, j;
     double *mat_a, *mat_b, *mat_c;
 
-    srand(time(NULL));
+    srand(0);
 
     mat_a = win_mem;
     mat_b = mat_a + mat_dim * mat_dim;
