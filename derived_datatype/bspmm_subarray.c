@@ -33,14 +33,14 @@ int main(int argc, char **argv)
 
     /* initialize matrices */
     if (!rank) {
-        MPI_Alloc_mem(3 * mat_dim * mat_dim * sizeof(double), MPI_INFO_NULL, &mat_a);
+        mat_a = (double *) malloc(3 * mat_dim * mat_dim * sizeof(double));
         mat_b = mat_a + mat_dim * mat_dim;
         mat_c = mat_b + mat_dim * mat_dim;
         init_mats(mat_dim, mat_a, mat_b, mat_c);
     }
 
     /* allocate local buffer */
-    MPI_Alloc_mem(3 * BLK_DIM * BLK_DIM * sizeof(double), MPI_INFO_NULL, &local_a);
+    local_a = (double *) malloc(3 * BLK_DIM * BLK_DIM * sizeof(double));
     local_b = local_a + BLK_DIM * BLK_DIM;
     local_c = local_b + BLK_DIM * BLK_DIM;
 
@@ -128,8 +128,7 @@ int main(int argc, char **argv)
         double *pf_mem, *pf_local_a, *tmp_local_a, *original_local_a = local_a;
         double *local_bs, *pf_local_bs, *tmp_local_bs;
 
-        MPI_Alloc_mem((2 * blk_num + 1) * BLK_DIM * BLK_DIM * sizeof(double), MPI_INFO_NULL,
-                      &pf_mem);
+        pf_mem = (double *) ((2 * blk_num + 1) * BLK_DIM * BLK_DIM * sizeof(double));
         local_bs = pf_mem;
         pf_local_bs = local_bs + blk_num * BLK_DIM * BLK_DIM;
         pf_local_a = pf_local_bs + blk_num * BLK_DIM * BLK_DIM;
@@ -185,7 +184,7 @@ int main(int argc, char **argv)
         }
 
         free(pf_b_reqs);
-        MPI_Free_mem(pf_mem);
+        free(pf_mem);
         local_a = original_local_a;
     }
 
@@ -199,9 +198,9 @@ int main(int argc, char **argv)
     }
 
     MPI_Type_free(&blk_dtp);
-    MPI_Free_mem(local_a);
+    free(local_a);
     if (!rank) {
-        MPI_Free_mem(mat_a);
+        free(mat_a);
     }
 
     MPI_Finalize();
