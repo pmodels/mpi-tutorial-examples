@@ -56,7 +56,7 @@ int main(int argc, char **argv)
     }
 
     /* allocate local buffer */
-    MPI_Alloc_mem(3 * BLK_DIM * BLK_DIM * sizeof(double), MPI_INFO_NULL, &local_a);
+    local_a = malloc(3 * BLK_DIM * BLK_DIM * sizeof(double));
     local_b = local_a + BLK_DIM * BLK_DIM;
     local_c = local_b + BLK_DIM * BLK_DIM;
 
@@ -140,7 +140,7 @@ int main(int argc, char **argv)
     MPI_Win_unlock(0, win);
 
     MPI_Type_free(&blk_dtp);
-    MPI_Free_mem(local_a);
+    free(local_a);
     MPI_Win_free(&win);
 
     MPI_Finalize();
