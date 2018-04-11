@@ -3,12 +3,15 @@ MPICC=mpicc
 CFLAGS= -g -Wall
 STENCIL_OBJS=$(PWD)/../../common/stencil/printarr_par.o
 STENCIL_CFLAGS= $(CFLAGS) -I$(PWD)/../../common/stencil
-BINS=stencil sort_any_procs
+BINS=cpi stencil sort_any_procs
 
 all: $(BINS)
 
 %.o: %.c
 	$(MPICC) $(CFLAGS) $< -c -lm -o $@
+
+cpi: cpi.c
+	$(MPICC) $(CFLAGS) $^ -o $@
 
 sort_any_procs: sort_any_procs.c
 	$(MPICC) $(CFLAGS) $^ -o $@

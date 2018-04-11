@@ -3,7 +3,8 @@ MPICC=mpicc
 CFLAGS= -g -Wall
 BSPMM_OBJS=$(PWD)/../../common/bspmm/bspmm_common.o
 BSPMM_CFLAGS=$(CFLAGS) -I$(PWD)/../../common/bspmm/
-BINS=sendrecv master_worker_simple sort_2_procs bspmm_simple
+BINS=sendrecv master_worker_simple master_worker sort_2_procs
+BINS+=sort_2_procs sort_any_procs bspmm_simple bspmm_pack
 
 all: $(BINS)
 
@@ -16,10 +17,19 @@ sendrecv: sendrecv.c
 master_worker_simple: master_worker_simple.c
 	$(MPICC) $(CFLAGS) $^ -o $@
 
+master_worker: master_worker.c
+	$(MPICC) $(CFLAGS) $^ -o $@
+
 sort_2_procs: sort_2_procs.c
 	$(MPICC) $(CFLAGS) $^ -o $@ -lm
 
+sort_any_procs: sort_any_procs.c
+	$(MPICC) $(CFLAGS) $^ -o $@ -lm
+
 bspmm_simple: bspmm_simple.c $(BSPMM_OBJS)
+	$(MPICC) $(BSPMM_CFLAGS) -o $@ $< $(BSPMM_OBJS)
+
+bspmm_pack: bspmm_pack.c $(BSPMM_OBJS)
 	$(MPICC) $(BSPMM_CFLAGS) -o $@ $< $(BSPMM_OBJS)
 
 clean:
