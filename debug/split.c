@@ -31,7 +31,7 @@ int main(int argc, char **argv)
         MPI_Irecv(NULL, 0, MPI_INT, 1, 0, MPI_COMM_WORLD, &req);
 
     if (color == 0) {
-        int i, curr, num_ops = (split_size - 1) * 2;
+        int i, curr, num_ops = split_size * 2;
         MPI_Request *reqs;
 
         sendbuf = malloc(sizeof(float) * split_size);
@@ -39,14 +39,12 @@ int main(int argc, char **argv)
         reqs = malloc(sizeof(MPI_Request) * num_ops);
 
         for (i = 0, curr = 0; i < split_size; i++) {
-            if (i != split_rank)
-                MPI_Irecv(&recvbuf[i], 1, MPI_FLOAT, i, 0, split_comm, &reqs[curr++]);
+            MPI_Irecv(&recvbuf[i], 1, MPI_FLOAT, i, 0, split_comm, &reqs[curr++]);
         }
 
         for (i = 0; i < split_size; i++) {
             sleep(1);
-            if (i != split_rank)
-                MPI_Isend(&sendbuf[i], 1, MPI_FLOAT, i, 0, split_comm, &reqs[curr++]);
+            MPI_Isend(&sendbuf[i], 1, MPI_FLOAT, i, 0, split_comm, &reqs[curr++]);
         }
 
         MPI_Waitall(num_ops, reqs, MPI_STATUSES_IGNORE);
