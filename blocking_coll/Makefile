@@ -1,24 +1,17 @@
-MPICXX=mpicxx
-MPICC=mpicc
+CC=mpicc
 CFLAGS= -g -Wall
-STENCIL_OBJS=$(PWD)/../../common/stencil/printarr_par.o
-STENCIL_CFLAGS= $(CFLAGS) -I$(PWD)/../../common/stencil
+STENCIL_COMMON_SRC=../common/stencil/printarr_par.c
+STENCIL_CFLAGS= $(CFLAGS) -I../common/stencil
 BINS=cpi stencil sort_any_procs
 
 all: $(BINS)
 
-%.o: %.c
-	$(MPICC) $(CFLAGS) $< -c -lm -o $@
-
-cpi: cpi.c
-	$(MPICC) $(CFLAGS) $^ -o $@
-
 sort_any_procs: sort_any_procs.c
-	$(MPICC) $(CFLAGS) $^ -o $@
+	$(CC) $(CFLAGS) $^ -o $@ -lm
 
-stencil: stencil.c $(STENCIL_OBJS)
-	$(MPICC) $(STENCIL_CFLAGS) -o $@ $< $(STENCIL_OBJS) -lm
+stencil: stencil.c $(STENCIL_COMMON_SRC)
+	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
 
 clean:
-	rm -f $(BINS) $(STENCIL_OBJS)
-	rm -fr output*.bmp
+	rm -f $(BINS)
+	rm -f output*.bmp

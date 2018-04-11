@@ -1,15 +1,13 @@
-MPICC=mpicc
-OBJS=$(PWD)/../../common/stencil/printarr_par.o
-CFLAGS= -acc -g -Wall -I$(PWD)/../../common/stencil
+CC=mpicc
+STENCIL_COMMON_SRC=../common/stencil/printarr_par.c
+STENCIL_CFLAGS= -acc -g -Wall -I../common/stencil
 BINS=stencil
 
 all: $(BINS)
 
-%.o: %.c
-	$(MPICC) $(CFLAGS) $< -c -lm -o $@
-
-stencil: stencil.c $(OBJS)
-	$(MPICC) $(CFLAGS) -o $@ $< $(OBJS) -lm
+stencil: stencil.c $(STENCIL_COMMON_SRC)
+	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
 
 clean:
-	rm -f $(BINS) $(OBJS)
+	rm -f $(BINS)
+	rm -f output*.bmp

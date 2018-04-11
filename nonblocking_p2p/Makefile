@@ -1,22 +1,19 @@
-MPICXX=mpicxx
-MPICC=mpicc
+CC=mpicc
 CFLAGS= -g -Wall
-STENCIL_OBJS=$(PWD)/../../common/stencil/printarr_par.o
-STENCIL_CFLAGS= -g -Wall -I$(PWD)/../../common/stencil
-BSPMM_OBJS=$(PWD)/../../common/bspmm/bspmm_common.o
-BSPMM_CFLAGS=$(CFLAGS) -I$(PWD)/../../common/bspmm/
+STENCIL_COMMON_SRC=../common/stencil/printarr_par.c
+STENCIL_CFLAGS=$(CFLAGS) -I../common/stencil
+BSPMM_COMMON_SRC=../common/bspmm/bspmm_common.c
+BSPMM_CFLAGS=$(CFLAGS) -I../common/bspmm
 BINS=stencil bspmm_pack
 
 all: $(BINS)
 
-%.o: %.c
-	$(MPICC) $(CFLAGS) $< -c -lm -o $@
+stencil: stencil.c $(STENCIL_COMMON_SRC)
+	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
 
-stencil: stencil.c $(STENCIL_OBJS)
-	$(MPICC) $(STENCIL_CFLAGS) -o $@ $< -lm
-
-bspmm_pack: bspmm_pack.c $(BSPMM_OBJS)
-	$(MPICC) $(BSPMM_CFLAGS) -o $@ $< $(BSPMM_OBJS)
+bspmm_pack: bspmm_pack.c $(BSPMM_COMMON_SRC)
+	$(CC) $(BSPMM_CFLAGS) $^ -o $@
 
 clean:
-	rm -f $(BINS) $(BSPMM_OBJS)
+	rm -f $(BINS)
+	rm -f output*tmp

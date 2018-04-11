@@ -1,36 +1,23 @@
-MPICXX=mpicxx
-MPICC=mpicc
+CC=mpicc
 CFLAGS= -g -Wall
-BSPMM_OBJS=$(PWD)/../../common/bspmm/bspmm_common.o
-BSPMM_CFLAGS=$(CFLAGS) -I$(PWD)/../../common/bspmm/
+BSPMM_COMMON_SRC=../common/bspmm/bspmm_common.c
+BSPMM_CFLAGS=$(CFLAGS) -I../common/bspmm
 BINS=sendrecv master_worker_simple master_worker sort_2_procs
 BINS+=sort_2_procs sort_any_procs bspmm_simple bspmm_pack
 
 all: $(BINS)
 
-%.o: %.c
-	$(MPICC) $(CFLAGS) $< -c -lm -o $@
-
-sendrecv: sendrecv.c
-	$(MPICC) $(CFLAGS) $^ -o $@ -lm
-
-master_worker_simple: master_worker_simple.c
-	$(MPICC) $(CFLAGS) $^ -o $@
-
-master_worker: master_worker.c
-	$(MPICC) $(CFLAGS) $^ -o $@
-
 sort_2_procs: sort_2_procs.c
-	$(MPICC) $(CFLAGS) $^ -o $@ -lm
+	$(CC) $(CFLAGS) $^ -o $@ -lm
 
 sort_any_procs: sort_any_procs.c
-	$(MPICC) $(CFLAGS) $^ -o $@ -lm
+	$(CC) $(CFLAGS) $^ -o $@ -lm
 
-bspmm_simple: bspmm_simple.c $(BSPMM_OBJS)
-	$(MPICC) $(BSPMM_CFLAGS) -o $@ $< $(BSPMM_OBJS)
+bspmm_simple: bspmm_simple.c $(BSPMM_COMMON_SRC)
+	$(CC) $(BSPMM_CFLAGS) $^ -o $@
 
-bspmm_pack: bspmm_pack.c $(BSPMM_OBJS)
-	$(MPICC) $(BSPMM_CFLAGS) -o $@ $< $(BSPMM_OBJS)
+bspmm_pack: bspmm_pack.c $(BSPMM_COMMON_SRC)
+	$(CC) $(BSPMM_CFLAGS) $^ -o $@
 
 clean:
-	rm -f $(BINS) $(BSPMM_OBJS)
+	rm -f $(BINS)

@@ -1,22 +1,32 @@
-MPICXX=mpicxx
-MPICC=mpicc
-OBJS=../../common/stencil/printarr_par.o
-CFLAGS= -g -Wall -I../../common/stencil
-BSPMM_OBJS=$(PWD)/../../common/bspmm/bspmm_common.o
-BSPMM_CFLAGS=$(CFLAGS) -I$(PWD)/../../common/bspmm/
-BINS=stencil_funneled stencil_multiple stencil_multiple_ncomms bspmm_funneled bspmm_multiple bspmm_multiple_nwins
+CC=mpicc
+CFLAGS= -g -Wall -fopenmp
+STENCIL_COMMON_SRC=../common/stencil/printarr_par.c
+STENCIL_CFLAGS=$(CFLAGS) -I../common/stencil
+BSPMM_COMMON_SRC=../common/bspmm/bspmm_common.c
+BSPMM_CFLAGS=$(CFLAGS) -I../common/bspmm
+BINS=stencil_funneled stencil_multiple stencil_multiple_ncomms
+BINS+=bspmm_funneled bspmm_multiple bspmm_multiple_nwins
 
 all: $(BINS)
 
-%.o: %.c
-	$(MPICC) $(CFLAGS) $< -c -lm -o $@
+stencil_funneled: stencil_funneled.c $(STENCIL_COMMON_SRC)
+	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
 
-stencil_%: stencil_%.c $(OBJS)
-	$(MPICC) $(CFLAGS) -fopenmp -o $@ $< $(OBJS) -lm
+stencil_multiple: stencil_multiple.c $(STENCIL_COMMON_SRC)
+	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
 
-bspmm_%: bspmm_%.c $(BSPMM_OBJS)
-	$(MPICC) $(BSPMM_CFLAGS) -fopenmp -o $@ $< $(BSPMM_OBJS)
+stencil_multiple_ncomms: stencil_multiple_ncomms.c $(STENCIL_COMMON_SRC)
+	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
+
+bspmm_funneled: bspmm_funneled.c $(BSPMM_COMMON_SRC)
+	$(CC) $(BSPMM_CFLAGS) $^ -o $@
+
+bspmm_multiple: bspmm_multiple.c $(BSPMM_COMMON_SRC)
+	$(CC) $(BSPMM_CFLAGS) $^ -o $@
+
+bspmm_multiple_nwins: bspmm_multiple_nwins.c $(BSPMM_COMMON_SRC)
+	$(CC) $(BSPMM_CFLAGS) $^ -o $@
 
 clean:
-	rm -f $(BINS) $(OBJS)
-	rm -fr output*.bmp
+	rm -f $(BINS)
+	rm -f output*.bmp
