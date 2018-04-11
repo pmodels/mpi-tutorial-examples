@@ -55,7 +55,7 @@ int main(int argc, char **argv)
     int chunk_size = (int) ceil((double) NUM_ELEMENTS / size);
     int last_chunk_size = chunk_size - (chunk_size * size - NUM_ELEMENTS);
 
-    srand(time(NULL));
+    srand(0);
     chunk = malloc(sizeof(int) * chunk_size);
 
     if (rank == 0) {
