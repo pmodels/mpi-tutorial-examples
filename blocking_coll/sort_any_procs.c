@@ -16,7 +16,7 @@ static int compare_int(const void *a, const void *b)
  * Length of a[] must be sum of lengths of a[] and b[] */
 static void merge(int *a, int numel_a, int *b, int numel_b)
 {
-    int *sorted = malloc((numel_a + numel_b) * sizeof *a);
+    int *sorted = (int *) malloc((numel_a + numel_b) * sizeof *a);
     int i, a_i = 0, b_i = 0;
     /* merge a[] and b[] into sorted[] */
     for (i = 0; i < (numel_a + numel_b); i++) {
@@ -56,12 +56,12 @@ int main(int argc, char **argv)
     int last_chunk_size = chunk_size - (chunk_size * size - NUM_ELEMENTS);
 
     srand(0);
-    chunk = malloc(sizeof(int) * chunk_size);
+    chunk = (int *) malloc(sizeof(int) * chunk_size);
 
     if (rank == 0) {
         /* allocate data buffer with garbage space for
          * the last chunk (i.e., when last_chunk_size < chunk_size) */
-        data = malloc(sizeof(int) * chunk_size * size);
+        data = (int *) malloc(sizeof(int) * chunk_size * size);
 
         /* prepare data and display it */
         int i;

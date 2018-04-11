@@ -250,15 +250,15 @@ void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr,
     double *exchange_sbuf, *exchange_rbuf;
 
     /* allocate two working arrays */
-    MPI_Alloc_mem((bx + 2) * (by + 2) * sizeof(double), MPI_INFO_NULL, &aold);  /* 1-wide halo zones! */
-    MPI_Alloc_mem((bx + 2) * (by + 2) * sizeof(double), MPI_INFO_NULL, &anew);  /* 1-wide halo zones! */
+    aold = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
+    anew = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
 
     memset(aold, 0, (bx + 2) * (by + 2) * sizeof(double));
     memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));
 
     /* allocate communication buffers that holds four halo zones */
-    MPI_Alloc_mem((bx + by) * 2 * sizeof(double), MPI_INFO_NULL, &exchange_sbuf);
-    MPI_Alloc_mem((bx + by) * 2 * sizeof(double), MPI_INFO_NULL, &exchange_rbuf);
+    exchange_sbuf = (double *) malloc((bx + by) * 2 * sizeof(double));
+    exchange_rbuf = (double *) malloc((bx + by) * 2 * sizeof(double));
 
     memset(exchange_sbuf, 0, (bx + by) * 2 * sizeof(double));
     memset(exchange_rbuf, 0, (bx + by) * 2 * sizeof(double));
@@ -271,10 +271,10 @@ void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr,
 
 void free_bufs(double *aold, double *anew, double *exchange_sbuf, double *exchange_rbuf)
 {
-    MPI_Free_mem(aold);
-    MPI_Free_mem(anew);
-    MPI_Free_mem(exchange_sbuf);
-    MPI_Free_mem(exchange_rbuf);
+    free(aold);
+    free(anew);
+    free(exchange_sbuf);
+    free(exchange_rbuf);
 }
 
 void pack_data(int bx, int by, double *aold,
