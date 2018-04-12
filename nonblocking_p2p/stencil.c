@@ -235,8 +235,8 @@ void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr,
     double *rbufnorth, *rbufsouth, *rbufeast, *rbufwest;
 
     /* allocate two working arrays */
-    anew = (double *) ((bx + 2) * (by + 2) * sizeof(double));   /* 1-wide halo zones! */
-    aold = (double *) ((bx + 2) * (by + 2) * sizeof(double));   /* 1-wide halo zones! */
+    anew = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
+    aold = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
 
     memset(aold, 0, (bx + 2) * (by + 2) * sizeof(double));
     memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));
