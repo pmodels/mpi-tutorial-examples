@@ -1,5 +1,24 @@
 #include "bspmm.h"
 
+/*
+ * Block sparse matrix multiplication using send/receive.
+ *
+ * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
+ *
+ * | C11 ... C1n |   | A11 ... A1n |    | B11 ... B1n |
+ * |  . .     .  |   |  . .     .  |    |  . .     .  |
+ * |  .  Cij  .  | = |  .  Aik  .  | *  |  .  Bkj  .  |
+ * |  .     . .  |   |  .     . .  |    |  .     . .  |
+ * | Cn1 ... Cnn |   | An1 ... Ann |    | Bn1 ... Bnn |
+ *
+ * bspmm parallelizes i and k; there are n^2 parallel computations of Cij += Aik * Bkj
+ * Work id (0 <= id < n^2) is associated with each computation as follows
+ *   (i, k) = (id / n, id % n)
+ *
+ * The master process sends entire matrices A and B to worker processes
+ * and sums up the calculated C that are received from workers.
+ */
+
 int main(int argc, char **argv)
 {
     int rank, nprocs;
@@ -53,22 +72,7 @@ int main(int argc, char **argv)
 
     t1 = MPI_Wtime();
 
-    /*
-     * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
-     *
-     * | C11 ... C1n |   | A11 ... A1n |    | B11 ... B1n |
-     * |  . .     .  |   |  . .     .  |    |  . .     .  |
-     * |  .  Cij  .  | = |  .  Aik  .  | *  |  .  Bkj  .  |
-     * |  .     . .  |   |  .     . .  |    |  .     . .  |
-     * | Cn1 ... Cnn |   | An1 ... Ann |    | Bn1 ... Bnn |
-     *
-     * bspmm parallelizes i and k; there are n^2 parallel computations of Cij += Aik * Bkj
-     * Work id (0 <= id < n^2) is associated with each computation as follows
-     *   (i, k) = (id / n, id % n)
-     * Note Cij must be updated atomically
-     */
-
-    work_id_len = blk_num * blk_num;
+    work_id_len = blk_num * blk_num;    /* total number of work units */
 
     /* copy entire matrices to workers */
     if (!rank) {

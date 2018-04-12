@@ -1,5 +1,28 @@
 #include "bspmm.h"
 
+/*
+ * Block sparse matrix multiplication using send/receive and manual packing.
+ *
+ * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
+ *
+ * | C11 ... C1n |   | A11 ... A1n |    | B11 ... B1n |
+ * |  . .     .  |   |  . .     .  |    |  . .     .  |
+ * |  .  Cij  .  | = |  .  Aik  .  | *  |  .  Bkj  .  |
+ * |  .     . .  |   |  .     . .  |    |  .     . .  |
+ * | Cn1 ... Cnn |   | An1 ... Ann |    | Bn1 ... Bnn |
+ *
+ * bspmm parallelizes i and k; there are n^2 parallel computations of Cij += Aik * Bkj
+ * Work id (0 <= id < n^2) is associated with each computation as follows
+ *   (i, k) = (id / n, id % n)
+ *
+ * The master process distributes each work unit (submatrices of A and B) to
+ * worker processes and sums up the corresponding C submatrices that are received
+ * from workers. The submatrice is noncontiguous and is packed into a contiguous
+ * buffer for send/receive */
+
+/* translate worker index to rank */
+#define worker_rank(w) (w+1)
+
 int main(int argc, char **argv)
 {
     int rank, nprocs;
@@ -46,68 +69,58 @@ int main(int argc, char **argv)
 
     t1 = MPI_Wtime();
 
-    /*
-     * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
-     *
-     * | C11 ... C1n |   | A11 ... A1n |    | B11 ... B1n |
-     * |  . .     .  |   |  . .     .  |    |  . .     .  |
-     * |  .  Cij  .  | = |  .  Aik  .  | *  |  .  Bkj  .  |
-     * |  .     . .  |   |  .     . .  |    |  .     . .  |
-     * | Cn1 ... Cnn |   | An1 ... Ann |    | Bn1 ... Bnn |
-     *
-     * bspmm parallelizes i and k; there are n^2 parallel computations of Cij += Aik * Bkj
-     * Work id (0 <= id < n^2) is associated with each computation as follows
-     *   (i, k) = (id / n, id % n)
-     * Note Cij must be updated atomically
-     */
-
-    work_id_len = blk_num * blk_num;
+    work_id_len = blk_num * blk_num;    /* total number of work units */
 
     if (!rank) {
         /* distribute A and B and receive results. */
-        int iter;               /* worker proceeds one work unit in each iteration */
-        int niters = (work_id_len + nprocs - 2) / (nprocs - 1); /* max # of work units per worker */
+        int work_start_id = 0;
 
-        for (iter = 0; iter < niters; iter++) {
-            int worker;
-            /* not all workers work in the last iteration since # of work units is not uniform */
-            int worker_end = iter != niters - 1 ? nprocs : work_id_len - iter * (nprocs - 1) + 1;
+        /* iterate through all work units */
+        while (work_start_id < work_id_len) {
+            int worker, nworkers;
             int global_j;
 
+            /* not all workers work in the last iteration since # of work units is not uniform */
+            nworkers = (work_id_len - work_start_id) < nprocs - 1 ?
+                work_id_len - work_start_id : nprocs - 1;
+
             /* send blocks of A to all workers */
-            for (worker = 1; worker < worker_end; worker++) {
-                int work_id = iter * (nprocs - 1) + worker - 1;
+            for (worker = 0; worker < nworkers; worker++) {
+                int work_id = work_start_id + worker;
                 int global_i = work_id / blk_num;
                 int global_k = work_id % blk_num;
 
                 pack_global_to_local(local_a, mat_a, mat_dim, global_i, global_k);
-                MPI_Send(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, worker, 0, MPI_COMM_WORLD);
+                MPI_Send(local_a, BLK_DIM * BLK_DIM, MPI_DOUBLE, worker_rank(worker), 0,
+                         MPI_COMM_WORLD);
             }
 
             /* send blocks of B and receive results */
             for (global_j = 0; global_j < blk_num; global_j++) {
                 /* send one block of B to each worker */
-                for (worker = 1; worker < worker_end; worker++) {
-                    int work_id = iter * (nprocs - 1) + worker - 1;
+                for (worker = 0; worker < nworkers; worker++) {
+                    int work_id = work_start_id + worker;
                     int global_k = work_id % blk_num;
 
                     pack_global_to_local(local_b, mat_b, mat_dim, global_k, global_j);
-                    MPI_Send(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, worker, 0, MPI_COMM_WORLD);
+                    MPI_Send(local_b, BLK_DIM * BLK_DIM, MPI_DOUBLE, worker_rank(worker), 0,
+                             MPI_COMM_WORLD);
                 }
 
                 /* workers are expected to proceed computation while master is communicating with
                  * other workers */
 
                 /* receive results from all workers */
-                for (worker = 1; worker < worker_end; worker++) {
-                    int work_id = iter * (nprocs - 1) + worker - 1;
+                for (worker = 0; worker < nworkers; worker++) {
+                    int work_id = work_start_id + worker;
                     int global_i = work_id / blk_num;
 
-                    MPI_Recv(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, worker, 0, MPI_COMM_WORLD,
-                             MPI_STATUS_IGNORE);
+                    MPI_Recv(local_c, BLK_DIM * BLK_DIM, MPI_DOUBLE, worker_rank(worker), 0,
+                             MPI_COMM_WORLD, MPI_STATUS_IGNORE);
                     add_local_to_global(mat_c, local_c, mat_dim, global_i, global_j);
                 }
             }
+            work_start_id += nworkers;
         }
     } else {
         /* receive A and B from master and return result */
