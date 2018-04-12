@@ -128,7 +128,7 @@ int main(int argc, char **argv)
         double *pf_mem, *pf_local_a, *tmp_local_a, *original_local_a = local_a;
         double *local_bs, *pf_local_bs, *tmp_local_bs;
 
-        pf_mem = (double *) ((2 * blk_num + 1) * BLK_DIM * BLK_DIM * sizeof(double));
+        pf_mem = (double *) malloc((2 * blk_num + 1) * BLK_DIM * BLK_DIM * sizeof(double));
         local_bs = pf_mem;
         pf_local_bs = local_bs + blk_num * BLK_DIM * BLK_DIM;
         pf_local_a = pf_local_bs + blk_num * BLK_DIM * BLK_DIM;
