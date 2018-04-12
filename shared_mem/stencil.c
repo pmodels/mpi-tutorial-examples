@@ -17,7 +17,7 @@ void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr);
 
 int main(int argc, char **argv)
 {
-    int rank, size;
+    int r, p;
     int n, energy, niters, px, py;
 
     int rx, ry;
@@ -32,46 +32,40 @@ int main(int argc, char **argv)
 
     double t1, t2;
 
-    int iter, i;
+    int iter, i, j;
 
-    double *aold, *anew, *tmp;
     double heat, rheat;
 
     int final_flag;
 
-    int grid_size;              /* grid size */
-    double *win_mem;            /* window memory */
-    MPI_Win win;                /* RMA window */
-
-
     /* initialize MPI envrionment */
     MPI_Init(&argc, &argv);
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
+    MPI_Comm_rank(MPI_COMM_WORLD, &r);
+    MPI_Comm_size(MPI_COMM_WORLD, &p);
 
     /* create shared memory communicator */
-    MPI_Comm shm_comm;
-    MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &shm_comm);
+    MPI_Comm shmcomm;
+    MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &shmcomm);
 
-    int shm_rank, shm_size;
-    MPI_Comm_size(shm_comm, &shm_size);
-    MPI_Comm_rank(shm_comm, &shm_rank);
+    int sr, sp;                 // rank and size in shmem comm
+    MPI_Comm_size(shmcomm, &sp);
+    MPI_Comm_rank(shmcomm, &sr);
 
-    /* works only when all processes are in the same shared memory region */
-    if (shm_size != size)
+    // this code works only on comm world!
+    if (sp != p)
         MPI_Abort(MPI_COMM_WORLD, 1);
 
     /* argument checking and setting */
-    setup(rank, size, argc, argv, &n, &energy, &niters, &px, &py, &final_flag);
+    setup(r, p, argc, argv, &n, &energy, &niters, &px, &py, &final_flag);
 
     if (final_flag == 1) {
         MPI_Finalize();
         exit(0);
     }
 
-    /* determine my coordinates (x,y) -- rank=x*a+y in the 2d processor array */
-    rx = rank % px;
-    ry = rank / px;
+    /* determine my coordinates (x,y) -- r=x*a+y in the 2d processor array */
+    rx = r % px;
+    ry = r / px;
 
     /* determine my four neighbors */
     north = (ry - 1) * px + rx;
@@ -93,35 +87,30 @@ int main(int argc, char **argv)
     offx = rx * bx;     /* offset in x */
     offy = ry * by;     /* offset in y */
 
-    /* printf("%i (%i,%i) - w: %i, e: %i, n: %i, s: %i\n", rank, ry,rx,west,east,north,south); */
+    /* printf("%i (%i,%i) - w: %i, e: %i, n: %i, s: %i\n", r, ry,rx,west,east,north,south); */
 
-    grid_size = (bx + 2) * (by + 2);    /* process-local grid (including halos (thus +2)) */
+    int size = (bx + 2) * (by + 2);     /* process-local grid (including halos (thus +2)) */
+    double *mem;
+    MPI_Win win;
+    MPI_Win_allocate_shared(2 * size * sizeof(double), 1, MPI_INFO_NULL, shmcomm, &mem, &win);
 
-    /* create shared RMA window upon working array */
-    MPI_Win_allocate_shared(2 * grid_size * sizeof(double), sizeof(double), MPI_INFO_NULL, shm_comm,
-                            &win_mem, &win);
-
-    MPI_Win_lock(MPI_LOCK_EXCLUSIVE, rank, 0, win);
-    memset(win_mem, 0, 2 * grid_size * sizeof(double));
-    MPI_Win_unlock(rank, win);
-
-    anew = win_mem;     /* each rank's offset */
-    aold = win_mem + grid_size; /* second half is aold! */
+    double *tmp;
+    double *anew = mem;         /* each rank's offset */
+    double *aold = mem + size;  /* second half is aold! */
 
     double *northptr, *southptr, *eastptr, *westptr;
     double *northptr2, *southptr2, *eastptr2, *westptr2;
-    MPI_Aint win_sz;
-    int disp_unit;
-
+    MPI_Aint sz;
+    int dsp_unit;
     /* locate the shared memory region for each neighbor */
-    MPI_Win_shared_query(win, north, &win_sz, &disp_unit, &northptr);
-    MPI_Win_shared_query(win, south, &win_sz, &disp_unit, &southptr);
-    MPI_Win_shared_query(win, east, &win_sz, &disp_unit, &eastptr);
-    MPI_Win_shared_query(win, west, &win_sz, &disp_unit, &westptr);
-    northptr2 = northptr + grid_size;
-    southptr2 = southptr + grid_size;
-    eastptr2 = eastptr + grid_size;
-    westptr2 = westptr + grid_size;
+    MPI_Win_shared_query(win, north, &sz, &dsp_unit, &northptr);
+    MPI_Win_shared_query(win, south, &sz, &dsp_unit, &southptr);
+    MPI_Win_shared_query(win, east, &sz, &dsp_unit, &eastptr);
+    MPI_Win_shared_query(win, west, &sz, &dsp_unit, &westptr);
+    northptr2 = northptr + size;
+    southptr2 = southptr + size;
+    eastptr2 = eastptr + size;
+    westptr2 = westptr + size;
 
     /* initialize three heat sources */
     init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
@@ -129,15 +118,14 @@ int main(int argc, char **argv)
     t1 = MPI_Wtime();   /* take time */
 
     MPI_Win_lock_all(0, win);
-
     for (iter = 0; iter < niters; ++iter) {
         /* refresh heat sources */
         for (i = 0; i < locnsources; ++i) {
             aold[ind(locsources[i][0], locsources[i][1])] += energy;    /* heat source */
         }
 
-        MPI_Win_sync(win);      /* ensure store operations are not reordered and have completed before barrier */
-        MPI_Barrier(MPI_COMM_WORLD);    /* ensure neighbors have completed heat source refreshing */
+        MPI_Win_sync(win);
+        MPI_Barrier(shmcomm);
 
         /* exchange data with neighbors */
         if (north != MPI_PROC_NULL) {
@@ -167,23 +155,22 @@ int main(int argc, char **argv)
 
         /* optional - print image */
         if (iter == niters - 1)
-            printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, shm_comm);
+            printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, shmcomm);
     }
 
     MPI_Win_unlock_all(win);
-
     t2 = MPI_Wtime();
-
-    MPI_Win_free(&win);
-    MPI_Comm_free(&shm_comm);
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    if (!rank)
-        printf("[%i] last heat: %f time: %f\n", rank, rheat, t2 - t1);
+    if (!r)
+        printf("[%i] last heat: %f time: %f\n", r, rheat, t2 - t1);
+
+    /* free working arrays and communication buffers */
+    MPI_Win_free(&win);
+    MPI_Comm_free(&shmcomm);
 
     MPI_Finalize();
-    return 0;
 }
 
 void setup(int rank, int proc, int argc, char **argv,
@@ -244,7 +231,6 @@ void init_sources(int bx, int by, int offx, int offy, int n,
 
     (*locnsources_ptr) = locnsources;
 }
-
 
 void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr)
 {
