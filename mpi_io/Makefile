@@ -6,10 +6,10 @@ BINS=stencil_carttopo_checkpoint_stdout stencil_carttopo_checkpoint_mpiio
 all: $(BINS)
 
 stencil_carttopo_checkpoint_stdout: stencil_carttopo_checkpoint.c checkpoint_stdout.c $(STENCIL_COMMON_SRC)
-	$(CC) $(STENCIL_CFLAGS) -o $@ $^
+	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
 
 stencil_carttopo_checkpoint_mpiio: stencil_carttopo_checkpoint.c checkpoint_mpiio.c $(STENCIL_COMMON_SRC)
-	$(CC) $(STENCIL_CFLAGS) -o $@ $^
+	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
 
 clean:
 	rm -f $(BINS)
