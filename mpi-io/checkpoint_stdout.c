@@ -12,7 +12,7 @@
 
 #include <mpi.h>
 
-#include "stencil_io.h"
+#include "checkpoint.h"
 
 /* stdout implementation of checkpoint (no restart) for MPI Stencil */
 

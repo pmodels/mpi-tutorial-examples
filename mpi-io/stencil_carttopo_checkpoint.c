@@ -6,7 +6,7 @@
  */
 
 #include "stencil_par.h"
-#include "stencil_io.h"
+#include "checkpoint.h"
 
 void setup(int rank, int proc, int argc, char **argv,
            int *n_ptr, int *energy_ptr, int *niters_ptr, int *px_ptr, int *py_ptr,

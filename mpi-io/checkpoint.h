@@ -5,8 +5,8 @@
  *      See COPYRIGHT in top-level directory.
  */
 
-#ifndef STENCIL_IO_H
-#define STENCIL_IO_H
+#ifndef CHECKPOINT_H_
+#define CHECKPOINT_H_
 
 int STENCILIO_Init(MPI_Comm comm);
 int STENCILIO_Can_restart(void);
@@ -19,4 +19,4 @@ int STENCILIO_Checkpoint(char *prefix, double *matrix, int n,
                          MPI_Info info);
 int STENCILIO_Finalize(void);
 
-#endif
+#endif /* CHECKPOINT_H_ */

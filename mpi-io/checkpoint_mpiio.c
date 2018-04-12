@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <mpi.h>
-#include "stencil_io.h"
+#include "checkpoint.h"
 
 /* MPI-IO implementation of checkpoint and restart for MPI Stencil
  *

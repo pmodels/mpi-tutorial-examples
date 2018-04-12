@@ -1,15 +1,15 @@
-MPICXX=mpicxx
-MPICC=mpicc
-CFLAGS= -g
-BINS=stencil_mpi_carttopo_stdout stencil_mpi_carttopo_mpiio
+CC=mpicc
+STENCIL_COMMON_SRC=../common/stencil/printarr_par.c
+STENCIL_CFLAGS= -g -I../common/stencil
+BINS=stencil_carttopo_checkpoint_stdout stencil_carttopo_checkpoint_mpiio
 
 all: $(BINS)
 
-stencil_mpi_carttopo_stdout: stencil_mpi_carttopo.c stencil_io_stdout.c printarr_par.c
-	$(MPICC) $(CFLAGS) -o $@ $^
+stencil_carttopo_checkpoint_stdout: stencil_carttopo_checkpoint.c checkpoint_stdout.c $(STENCIL_COMMON_SRC)
+	$(CC) $(STENCIL_CFLAGS) -o $@ $^
 
-stencil_mpi_carttopo_mpiio: stencil_mpi_carttopo.c stencil_io_mpiio.c printarr_par.c
-	$(MPICC) $(CFLAGS) -o $@ $^
+stencil_carttopo_checkpoint_mpiio: stencil_carttopo_checkpoint.c checkpoint_mpiio.c $(STENCIL_COMMON_SRC)
+	$(CC) $(STENCIL_CFLAGS) -o $@ $^
 
 clean:
 	rm -f $(BINS)
