@@ -100,51 +100,49 @@ int main(int argc, char **argv)
 
     t1 = MPI_Wtime();   /* take time */
 
-#pragma acc data copy(aold[0:(bx+2)*(by+2)], anew[0:(bx+2)*(by+2)])
-    {
-        for (iter = 0; iter < niters; ++iter) {
+#pragma acc data create(aold[0:(bx+2)*(by+2)],anew[0:(bx+2)*(by+2)])
+    for (iter = 0; iter < niters; ++iter) {
 
-            /* refresh heat sources */
-            for (i = 0; i < locnsources; ++i) {
-                aold[ind(locsources[i][0], locsources[i][1])] += energy;        /* heat source */
-            }
+        /* refresh heat sources */
+        for (i = 0; i < locnsources; ++i) {
+            aold[ind(locsources[i][0], locsources[i][1])] += energy;    /* heat source */
+        }
 
-            /* exchange data with neighbors */
-            MPI_Request reqs[8];
-            MPI_Isend(&aold[ind(1, 1)] /* north */ , bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD,
-                      &reqs[0]);
-            MPI_Isend(&aold[ind(1, by)] /* south */ , bx, MPI_DOUBLE, south, 9, MPI_COMM_WORLD,
-                      &reqs[1]);
-            MPI_Isend(&aold[ind(bx, 1)] /* east */ , 1, east_west_type, east, 9, MPI_COMM_WORLD,
-                      &reqs[2]);
-            MPI_Isend(&aold[ind(1, 1)] /* west */ , 1, east_west_type, west, 9, MPI_COMM_WORLD,
-                      &reqs[3]);
-            MPI_Irecv(&aold[ind(1, 0)] /* north */ , bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD,
-                      &reqs[4]);
-            MPI_Irecv(&aold[ind(1, by + 1)] /* south */ , bx, MPI_DOUBLE, south, 9,
-                      MPI_COMM_WORLD, &reqs[5]);
-            MPI_Irecv(&aold[ind(bx + 1, 1)] /* west */ , 1, east_west_type, east, 9, MPI_COMM_WORLD,
-                      &reqs[6]);
-            MPI_Irecv(&aold[ind(0, 1)] /* east */ , 1, east_west_type, west, 9, MPI_COMM_WORLD,
-                      &reqs[7]);
-            MPI_Waitall(8, reqs, MPI_STATUS_IGNORE);
+        /* exchange data with neighbors */
+        MPI_Request reqs[8];
+        MPI_Isend(&aold[ind(1, 1)] /* north */ , bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD,
+                  &reqs[0]);
+        MPI_Isend(&aold[ind(1, by)] /* south */ , bx, MPI_DOUBLE, south, 9, MPI_COMM_WORLD,
+                  &reqs[1]);
+        MPI_Isend(&aold[ind(bx, 1)] /* east */ , 1, east_west_type, east, 9, MPI_COMM_WORLD,
+                  &reqs[2]);
+        MPI_Isend(&aold[ind(1, 1)] /* west */ , 1, east_west_type, west, 9, MPI_COMM_WORLD,
+                  &reqs[3]);
+        MPI_Irecv(&aold[ind(1, 0)] /* north */ , bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD,
+                  &reqs[4]);
+        MPI_Irecv(&aold[ind(1, by + 1)] /* south */ , bx, MPI_DOUBLE, south, 9,
+                  MPI_COMM_WORLD, &reqs[5]);
+        MPI_Irecv(&aold[ind(bx + 1, 1)] /* west */ , 1, east_west_type, east, 9, MPI_COMM_WORLD,
+                  &reqs[6]);
+        MPI_Irecv(&aold[ind(0, 1)] /* east */ , 1, east_west_type, west, 9, MPI_COMM_WORLD,
+                  &reqs[7]);
+        MPI_Waitall(8, reqs, MPI_STATUS_IGNORE);
 
 #pragma acc update device (aold[0:(bx+2)*(by+2)])
 
-            /* update grid points */
-            update_grid(bx, by, aold, anew, &heat);
+        /* update grid points */
+        update_grid(bx, by, aold, anew, &heat);
 
 #pragma acc update host (anew[0:(bx+2)*(by+2)])
 
-            /* swap working arrays */
-            tmp = anew;
-            anew = aold;
-            aold = tmp;
+        /* swap working arrays */
+        tmp = anew;
+        anew = aold;
+        aold = tmp;
 
-            /* optional - print image */
-            if (iter == niters - 1)
-                printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, MPI_COMM_WORLD);
-        }
+        /* optional - print image */
+        if (iter == niters - 1)
+            printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, MPI_COMM_WORLD);
     }
 
     t2 = MPI_Wtime();
@@ -229,8 +227,8 @@ void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr)
     int i, j;
     double heat = 0.0;
 
+#pragma acc parallel loop present(aold, anew) reduction(+:heat)
     for (i = 1; i < bx + 1; ++i) {
-#pragma acc parallel loop reduction(+:heat)
         for (j = 1; j < by + 1; ++j) {
             anew[ind(i, j)] =
                 anew[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +

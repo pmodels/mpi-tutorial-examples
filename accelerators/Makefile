@@ -1,6 +1,6 @@
 CC=mpicc
 STENCIL_COMMON_SRC=../common/stencil/printarr_par.c
-STENCIL_CFLAGS= -acc -g -Wall -I../common/stencil
+STENCIL_CFLAGS= -acc -g -I../common/stencil
 BINS=stencil
 
 all: $(BINS)
