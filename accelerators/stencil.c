@@ -130,6 +130,7 @@ int main(int argc, char **argv)
 
 #pragma acc update device (aold[0:(bx+2)*(by+2)])
 
+        /* offload computation to the device in update_grid() */
         /* update grid points */
         update_grid(bx, by, aold, anew, &heat);
 
