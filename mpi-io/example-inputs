@@ -1,0 +1,6 @@
+mpiexec -n 8 ./stencil_mpi_carttopo_stdout 32 10 10 4 2
+STENCIL_DBG_RANK=2 STENCIL_DBG_ITER=5 mpiexec -n 8 ./stencil_mpi_carttopo_mpiio 32 10 10 4 2 patch   # create checkpoint file and print the patch at iter 2 for rank 2
+STENCIL_DBG_RANK=2 STENCIL_DBG_ITER=5 mpiexec -n 8 ./stencil_mpi_carttopo_mpiio 32 10 10 4 2 patch 5 # restart from iteration 5 and print the recovered patch for rank 2
+STENCIL_DBG_CORNER=1 mpiexec -n 8 ./stencil_mpi_carttopo_mpiio 32 10 10 4 2 patch                    # also checkpoint corner data
+mpiexec -n 8 ./stencil_mpi_carttopo_mpiio 4096 10 100 4 2 patch
+mpiexec -n 8 ./stencil_mpi_carttopo_mpiio 4096 10 100 4 2 patch 32
