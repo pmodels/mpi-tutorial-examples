@@ -96,7 +96,7 @@ int main(int argc, char **argv)
     MPI_Win_unlock(rank, win);  /* MEM_MODE: update to my private window becomes
                                  * visible in public window */
 
-    anew = win_mem;     /* each rank's offset */
+    anew = win_mem;
     aold = win_mem + grid_size; /* second half is aold! */
 
     /* initialize three heat sources */

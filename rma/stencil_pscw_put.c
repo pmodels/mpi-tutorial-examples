@@ -92,7 +92,7 @@ int main(int argc, char **argv)
                      MPI_COMM_WORLD, &win_mem, &win);
     memset(win_mem, 0, 2 * grid_size * sizeof(double));
 
-    anew = win_mem;     /* each rank's offset */
+    anew = win_mem;
     aold = win_mem + grid_size; /* second half is aold! */
 
     /* initialize three heat sources */
