@@ -128,13 +128,13 @@ int main(int argc, char **argv)
                   &reqs[7]);
         MPI_Waitall(8, reqs, MPI_STATUS_IGNORE);
 
-#pragma acc update device (aold[0:(bx+2)*(by+2)])
+#pragma acc update device(aold[0:(bx+2)*(by+2)])
 
         /* offload computation to the device in update_grid() */
         /* update grid points */
         update_grid(bx, by, aold, anew, &heat);
 
-#pragma acc update host (anew[0:(bx+2)*(by+2)])
+#pragma acc update host(anew[0:(bx+2)*(by+2)])
 
         /* swap working arrays */
         tmp = anew;
