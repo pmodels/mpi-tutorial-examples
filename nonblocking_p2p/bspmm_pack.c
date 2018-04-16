@@ -1,5 +1,17 @@
 #include "bspmm.h"
 
+int is_zero_local(double *local_mat);
+
+int is_zero_global(double *global_mat, int mat_dim, int global_i, int global_j);
+
+void dgemm(double *local_a, double *local_b, double *local_c);
+
+void pack_global_to_local(double *local_mat, double *global_mat, int mat_dim, int global_i,
+                          int global_j);
+
+void add_local_to_global(double *global_mat, double *local_mat, int mat_dim, int global_i,
+                         int global_j);
+
 int main(int argc, char **argv)
 {
     int rank, nprocs;
@@ -200,4 +212,55 @@ int main(int argc, char **argv)
 
     MPI_Finalize();
     return 0;
+}
+
+int is_zero_local(double *local_mat)
+{
+    int i, j;
+
+    for (i = 0; i < BLK_DIM; i++) {
+        for (j = 0; j < BLK_DIM; j++) {
+            if (local_mat[j + i * BLK_DIM] != 0.0)
+                return 0;
+        }
+    }
+    return 1;
+}
+
+void dgemm(double *local_a, double *local_b, double *local_c)
+{
+    int i, j, k;
+
+    memset(local_c, 0, BLK_DIM * BLK_DIM * sizeof(double));
+
+    for (j = 0; j < BLK_DIM; j++) {
+        for (i = 0; i < BLK_DIM; i++) {
+            for (k = 0; k < BLK_DIM; k++)
+                local_c[j + i * BLK_DIM] += local_a[k + i * BLK_DIM] * local_b[j + k * BLK_DIM];
+        }
+    }
+}
+
+void pack_global_to_local(double *local_mat, double *global_mat, int mat_dim, int global_i,
+                          int global_j)
+{
+    int i, j;
+    int offset = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
+
+    for (i = 0; i < BLK_DIM; i++) {
+        for (j = 0; j < BLK_DIM; j++)
+            local_mat[j + i * BLK_DIM] = global_mat[offset + j + i * mat_dim];
+    }
+}
+
+void add_local_to_global(double *global_mat, double *local_mat, int mat_dim, int global_i,
+                         int global_j)
+{
+    int i, j;
+    int offset = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
+
+    for (i = 0; i < BLK_DIM; i++) {
+        for (j = 0; j < BLK_DIM; j++)
+            global_mat[offset + j + i * mat_dim] += local_mat[j + i * BLK_DIM];
+    }
 }

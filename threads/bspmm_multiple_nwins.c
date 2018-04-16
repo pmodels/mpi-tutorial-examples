@@ -1,6 +1,10 @@
 #include <omp.h>
 #include "bspmm.h"
 
+int is_zero_local(double *local_mat);
+
+void dgemm(double *local_a, double *local_b, double *local_c);
+
 int main(int argc, char **argv)
 {
     int rank, nprocs, provided;
@@ -198,4 +202,31 @@ int main(int argc, char **argv)
 
     MPI_Finalize();
     return 0;
+}
+
+int is_zero_local(double *local_mat)
+{
+    int i, j;
+
+    for (i = 0; i < BLK_DIM; i++) {
+        for (j = 0; j < BLK_DIM; j++) {
+            if (local_mat[j + i * BLK_DIM] != 0.0)
+                return 0;
+        }
+    }
+    return 1;
+}
+
+void dgemm(double *local_a, double *local_b, double *local_c)
+{
+    int i, j, k;
+
+    memset(local_c, 0, BLK_DIM * BLK_DIM * sizeof(double));
+
+    for (j = 0; j < BLK_DIM; j++) {
+        for (i = 0; i < BLK_DIM; i++) {
+            for (k = 0; k < BLK_DIM; k++)
+                local_c[j + i * BLK_DIM] += local_a[k + i * BLK_DIM] * local_b[j + k * BLK_DIM];
+        }
+    }
 }

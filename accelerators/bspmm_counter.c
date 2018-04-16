@@ -1,5 +1,7 @@
 #include "bspmm.h"
 
+int is_zero_local(double *local_mat);
+
 void dgemm_acc(double *local_a, double *local_b, double *local_c);
 
 int main(int argc, char **argv)
@@ -168,6 +170,19 @@ int main(int argc, char **argv)
 
     MPI_Finalize();
     return 0;
+}
+
+int is_zero_local(double *local_mat)
+{
+    int i, j;
+
+    for (i = 0; i < BLK_DIM; i++) {
+        for (j = 0; j < BLK_DIM; j++) {
+            if (local_mat[j + i * BLK_DIM] != 0.0)
+                return 0;
+        }
+    }
+    return 1;
 }
 
 void dgemm_acc(double *local_a, double *local_b, double *local_c)
