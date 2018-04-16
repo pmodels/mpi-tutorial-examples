@@ -2,8 +2,6 @@
 
 int is_zero_local(double *local_mat);
 
-int is_zero_global(double *global_mat, int mat_dim, int global_i, int global_j);
-
 void dgemm(double *local_a, double *local_b, double *local_c);
 
 void pack_global_to_local(double *local_mat, double *global_mat, int mat_dim, int global_i,
