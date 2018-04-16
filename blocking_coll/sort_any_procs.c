@@ -5,6 +5,14 @@
 #include <string.h>
 #include <math.h>
 
+/*
+ * Sort array using blocking collectives.
+ *
+ * The master process prepares the data. The ranks scatter the array,
+ * sort their chunks, and gather the sorted chunks. The master merges
+ * the individually sorted chunks together.
+ */
+
 #define NUM_ELEMENTS 50
 
 static int compare_int(const void *a, const void *b)

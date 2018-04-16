@@ -5,6 +5,15 @@
 #include <string.h>
 #include <math.h>
 
+/*
+ * Sort array using blocking send/recv between 2 ranks.
+ *
+ * The master process prepares the data and sends the latter half
+ * of the array to the other rank. Each rank sorts it half. The
+ * master then merges the sorted halved together. The two ranks
+ * communicate using blocking send/recv.
+ */
+
 #define NUM_ELEMENTS 50
 
 static int compare_int(const void *a, const void *b)
