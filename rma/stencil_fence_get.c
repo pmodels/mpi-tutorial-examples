@@ -5,6 +5,14 @@
  *
  */
 
+/*
+ * 2D stencil code using an RMA get operation and a fence on a window.
+ *
+ * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
+ * In every iteration, each process issues RMA operations to get a halo from neighbors and performs
+ * a fence synchronization on a window.
+ */
+
 #include "stencil_par.h"
 
 void setup(int rank, int proc, int argc, char **argv,

@@ -5,6 +5,14 @@
  *
  */
 
+/*
+ * 2D stencil code using an RMA put operation and a fence synchronization on a window.
+ *
+ * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
+ * In every iteration, each process issues RMA operations to put its outer grid points to neighbors
+ * and performs a fence synchronization on a window.
+ */
+
 #include "stencil_par.h"
 
 void setup(int rank, int proc, int argc, char **argv,
@@ -89,8 +97,7 @@ int main(int argc, char **argv)
 
     /* create RMA window upon working array */
     MPI_Win_allocate(2 * grid_size * sizeof(double), sizeof(double), MPI_INFO_NULL,
-            
-        MPI_COMM_WORLD, &win_mem, &win);
+                     MPI_COMM_WORLD, &win_mem, &win);
     memset(win_mem, 0, 2 * grid_size * sizeof(double));
 
     anew = win_mem;

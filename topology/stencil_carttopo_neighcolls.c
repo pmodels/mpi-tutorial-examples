@@ -5,6 +5,15 @@
  *
  */
 
+/*
+ * 2D stencil code using topology-aware communicators and a neighbor blocking collective.
+ *
+ * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
+ * In every iteration, each process calls a neighbor blocking collective with derived data types to
+ * exchange grid points in a halo region with neighbors. Communications are done with topology-aware
+ * communicators.
+ */
+
 #include "stencil_par.h"
 
 void setup(int rank, int proc, int argc, char **argv,

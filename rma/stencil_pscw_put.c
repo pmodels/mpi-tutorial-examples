@@ -5,6 +5,14 @@
  *
  */
 
+/*
+ * 2D stencil code using an RMA put operation and an RMA exposure epoch.
+ *
+ * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
+ * In every iteration, each process starts an exposure epoch to neighbors and issues RMA operations
+ * to put its outer grid points to neighbors. RMA operations are synchronized by closing the epoch.
+ */
+
 #include "stencil_par.h"
 
 void setup(int rank, int proc, int argc, char **argv,

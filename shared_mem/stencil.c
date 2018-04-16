@@ -5,6 +5,13 @@
  *
  */
 
+/*
+ * 2D stencil code using RMA operations for shared memory.
+ *
+ * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
+ * In every iteration, each process synchronizes grid points in shared memory.
+ */
+
 #include "stencil_par.h"
 
 void setup(int rank, int proc, int argc, char **argv,

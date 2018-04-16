@@ -5,6 +5,15 @@
  *
  */
 
+/*
+ * 2D stencil code using a blocking collective with manual packing/unpacking.
+ *
+ * 2D regular grid are divided into px * py blocks of grid points (px * py = # of processes.)
+ * In every iteration, each process calls a blocking collective operation to exchange a halo with
+ * neighbors. Grid points in a halo region are packed and unpacked before and after the collective
+ * operation.
+ */
+
 #include "stencil_par.h"
 
 void setup(int rank, int proc, int argc, char **argv,

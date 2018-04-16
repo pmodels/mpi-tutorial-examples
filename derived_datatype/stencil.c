@@ -5,6 +5,14 @@
  *
  */
 
+/*
+ * 2D stencil code using nonblocking send/receive with derived data types.
+ *
+ * 2D regular grid are divided into px * py blocks of grid points (px * py = # of processes.)
+ * In every iteration, each process calls nonblocking operations with derived data types to exchange
+ * grid points in a halo region with its neighbors.
+ */
+
 #include "stencil_par.h"
 
 void setup(int rank, int proc, int argc, char **argv,

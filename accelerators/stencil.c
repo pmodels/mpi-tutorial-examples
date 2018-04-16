@@ -5,6 +5,14 @@
  *
  */
 
+/*
+ * 2D stencil code using MPI and OpenACC.
+ *
+ * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
+ * In every iteration, each process calls nonblocking operations with derived data types to exchange
+ * grid points in a halo with its neighbors. Computation is accelerated by OpenACC.
+ */
+
 #include "stencil_par.h"
 
 void setup(int rank, int proc, int argc, char **argv,

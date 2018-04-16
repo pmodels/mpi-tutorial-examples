@@ -5,6 +5,14 @@
  *
  */
 
+/*
+ * 2D stencil code using a nonblocking send/receive with manual packing/unpacking.
+ *
+ * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
+ * In every iteration, each process calls nonblocking operations to exchange a halo with
+ * neighbors. Grid points in a halo are packed and unpacked before and after communications.
+ */
+
 #include "stencil_par.h"
 
 void setup(int rank, int proc, int argc, char **argv,

@@ -5,6 +5,15 @@
  *
  */
 
+/*
+ * 2D stencil code using a nonblocking collective.
+ *
+ * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
+ * In every iteration, each process calls a nonblocking collective operation with derived data types
+ * to exchange a halo with neighbors. While communicating a halo, inner grid points are updated
+ * because this computation does not use grid points in a halo region.
+ */
+
 #include "stencil_par.h"
 
 void setup(int rank, int proc, int argc, char **argv,

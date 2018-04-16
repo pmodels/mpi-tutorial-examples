@@ -5,6 +5,14 @@
  *
  */
 
+/*
+ * 2D stencil code using an RMA put operation and a barrier.
+ *
+ * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
+ * In every iteration, each process issues RMA operations to put its outer grid points to neighbors
+ * and performs a barrier to synchronize RMA operations.
+ */
+
 #include "stencil_par.h"
 
 void setup(int rank, int proc, int argc, char **argv,

@@ -5,6 +5,15 @@
  *
  */
 
+/*
+ * 2D stencil code parallelized by multiple threads with MPI_THREAD_MULTIPLE.
+ *
+ * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
+ * The computation over x-axis is multithreaded. In every iteration, each thread calls nonblocking
+ * operations with derived data types to exchange grid points in a halo region with corresponding
+ * threads of neighbor nodes.
+ */
+
 #include "stencil_par.h"
 #include <omp.h>
 

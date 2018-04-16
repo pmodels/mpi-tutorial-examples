@@ -5,6 +5,13 @@
  *
  */
 
+/*
+ * 2D stencil code with a checkpoint.
+ *
+ * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
+ * After updating grid points, each process saves the whole grid data using MPI IO operations.
+ */
+
 #include "stencil_par.h"
 #include "checkpoint.h"
 
