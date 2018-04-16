@@ -6,6 +6,9 @@ BINS=cpi stencil_alltoallv sort_any_procs
 
 all: $(BINS)
 
+cpi: cpi.c
+	$(CC) $(CFLAGS) $^ -o $@ -lm
+
 sort_any_procs: sort_any_procs.c
 	$(CC) $(CFLAGS) $^ -o $@ -lm
 

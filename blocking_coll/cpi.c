@@ -4,6 +4,13 @@
  *      See COPYRIGHT in top-level directory.
  */
 
+/*
+ * Calculation of Pi via numerical integration.
+ *
+ * Parallelly integrate sqrt(1 - x^2) over x from 0 to 1 by dividing x with multiple nodes.
+ * The result is reduced by a blocking collective.
+ */
+
 #include "mpi.h"
 #include <stdio.h>
 #include <math.h>
@@ -12,7 +19,7 @@ double f(double);
 
 double f(double a)
 {
-    return (4.0 / (1.0 + a * a));
+    return sqrt(1.0 - a * a);
 }
 
 int main(int argc, char *argv[])
@@ -49,6 +56,7 @@ int main(int argc, char *argv[])
 
     MPI_Reduce(&mypi, &pi, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
 
+    pi *= 4.0;
     if (myid == 0) {
         endwtime = MPI_Wtime();
         printf("pi is approximately %.16f, Error is %.16f\n", pi, fabs(pi - PI25DT));
