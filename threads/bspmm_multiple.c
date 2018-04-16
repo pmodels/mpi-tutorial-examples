@@ -1,6 +1,30 @@
 #include <omp.h>
 #include "bspmm.h"
 
+/*
+ * Block sparse matrix multiplication using RMA operations, a global counter for workload
+ * distribution and MPI_THREAD_MULTIPLE mode.
+ *
+ * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
+ *
+ * | C11 ... C1n |   | A11 ... A1n |    | B11 ... B1n |
+ * |  . .     .  |   |  . .     .  |    |  . .     .  |
+ * |  .  Cij  .  | = |  .  Aik  .  | *  |  .  Bkj  .  |
+ * |  .     . .  |   |  .     . .  |    |  .     . .  |
+ * | Cn1 ... Cnn |   | An1 ... Ann |    | Bn1 ... Bnn |
+ *
+ * bspmm parallelizes i and k; there are n^2 parallel computations of Cij += Aik * Bkj
+ * Work id (0 <= id < n^2) is associated with each computation as follows
+ *   (i, k) = (id / n, id % n)
+ *
+ * The master process allocates entire matrices A, B and C. The worker processes get
+ * the submatrices from master using RMA operations. Each worker spawns a team of threads
+ * with each thread working on a different submatrix. The distribution of work between
+ * the threads of all the workers is dynamic: each thread reads a counter to obtain its
+ * work id. The counter is updated atomically each time it is read. Each thread updates
+ * the submatrix of C that it is working on atomically.
+ */
+
 int is_zero_local(double *local_mat);
 
 void dgemm(double *local_a, double *local_b, double *local_c);
@@ -92,20 +116,6 @@ int main(int argc, char **argv)
     MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win);
     MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win_counter);
 
-    /*
-     * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
-     *
-     * | C11 ... C1n |   | A11 ... A1n |    | B11 ... B1n |
-     * |  . .     .  |   |  . .     .  |    |  . .     .  |
-     * |  .  Cij  .  | = |  .  Aik  .  | *  |  .  Bkj  .  |
-     * |  .     . .  |   |  .     . .  |    |  .     . .  |
-     * | Cn1 ... Cnn |   | An1 ... Ann |    | Bn1 ... Bnn |
-     *
-     * bspmm parallelizes i and k; there are n^2 parallel computations of Cij += Aik * Bkj
-     * Work id (0 <= id < n^2) is associated with each computation as follows
-     *   (i, k) = (id / n, id % n)
-     * Note Cij must be updated atomically
-     */
     work_id_len = blk_num * blk_num;
 
     t1 = MPI_Wtime();

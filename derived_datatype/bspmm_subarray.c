@@ -1,5 +1,28 @@
 #include "bspmm.h"
 
+/*
+ * Block sparse matrix multiplication using non-blocking send/receive and subarray
+ * datatype.
+ *
+ * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
+ *
+ * | C11 ... C1n |   | A11 ... A1n |    | B11 ... B1n |
+ * |  . .     .  |   |  . .     .  |    |  . .     .  |
+ * |  .  Cij  .  | = |  .  Aik  .  | *  |  .  Bkj  .  |
+ * |  .     . .  |   |  .     . .  |    |  .     . .  |
+ * | Cn1 ... Cnn |   | An1 ... Ann |    | Bn1 ... Bnn |
+ *
+ * bspmm parallelizes i and k; there are n^2 parallel computations of Cij += Aik * Bkj
+ * Work id (0 <= id < n^2) is associated with each computation as follows
+ *   (i, k) = (id / n, id % n)
+ *
+ * The master process distributes each work unit (submatrices of A and B) to
+ * worker processes and sums up the corresponding C submatrices that are received
+ * from workers. The workers overlap computation of current submatrix with
+ * communication of next one. The subarray datatype is used to define a submatrix,
+ * eliminating the need of manual packing/unpacking.
+ */
+
 int is_zero_local(double *local_mat);
 
 void dgemm(double *local_a, double *local_b, double *local_c);
@@ -62,21 +85,6 @@ int main(int argc, char **argv)
     MPI_Barrier(MPI_COMM_WORLD);
 
     t1 = MPI_Wtime();
-
-    /*
-     * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
-     *
-     * | C11 ... C1n |   | A11 ... A1n |    | B11 ... B1n |
-     * |  . .     .  |   |  . .     .  |    |  . .     .  |
-     * |  .  Cij  .  | = |  .  Aik  .  | *  |  .  Bkj  .  |
-     * |  .     . .  |   |  .     . .  |    |  .     . .  |
-     * | Cn1 ... Cnn |   | An1 ... Ann |    | Bn1 ... Bnn |
-     *
-     * bspmm parallelizes i and k; there are n^2 parallel computations of Cij += Aik * Bkj
-     * Work id (0 <= id < n^2) is associated with each computation as follows
-     *   (i, k) = (id / n, id % n)
-     * Note Cij must be updated atomically
-     */
 
     work_id_len = blk_num * blk_num;
 

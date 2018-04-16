@@ -1,11 +1,25 @@
-/*
- * Copyright (c) 2014 Xin Zhao. All rights reserved.
- *
- * Author(s): Xin Zhao <xinzhao3@illinois.edu>
- *
- */
-
 #include "bspmm.h"
+
+/*
+ * Block sparse matrix multiplication using RMA operations.
+ *
+ * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
+ *
+ * | C11 ... C1n |   | A11 ... A1n |    | B11 ... B1n |
+ * |  . .     .  |   |  . .     .  |    |  . .     .  |
+ * |  .  Cij  .  | = |  .  Aik  .  | *  |  .  Bkj  .  |
+ * |  .     . .  |   |  .     . .  |    |  .     . .  |
+ * | Cn1 ... Cnn |   | An1 ... Ann |    | Bn1 ... Bnn |
+ *
+ * bspmm parallelizes i and k; there are n^2 parallel computations of Cij += Aik * Bkj
+ * Work id (0 <= id < n^2) is associated with each computation as follows
+ *   (i, k) = (id / n, id % n)
+ *
+ * The master process allocates entire matrices A, B and C. The worker processes get
+ * the submatrices from master using RMA operations. The distribution of work between
+ * the workers is static. Each worker atomically updates the value of the submatrix
+ * of C that it computes.
+ */
 
 int is_zero_local(double *local_mat);
 
@@ -80,20 +94,6 @@ int main(int argc, char **argv)
 
     MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win);
 
-    /*
-     * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
-     *
-     * | C11 ... C1n |   | A11 ... A1n |    | B11 ... B1n |
-     * |  . .     .  |   |  . .     .  |    |  . .     .  |
-     * |  .  Cij  .  | = |  .  Aik  .  | *  |  .  Bkj  .  |
-     * |  .     . .  |   |  .     . .  |    |  .     . .  |
-     * | Cn1 ... Cnn |   | An1 ... Ann |    | Bn1 ... Bnn |
-     *
-     * bspmm parallelizes i and k; there are n^2 parallel computations of Cij += Aik * Bkj
-     * Work id (0 <= id < n^2) is associated with each computation as follows
-     *   (i, k) = (id / n, id % n)
-     * Note Cij must be updated atomically
-     */
     work_id_len = blk_num * blk_num;
 
     t1 = MPI_Wtime();

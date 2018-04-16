@@ -1,7 +1,8 @@
 #include "bspmm.h"
 
 /*
- * Block sparse matrix multiplication using shared memory.
+ * Block sparse matrix multiplication using shared memory and a global counter for workload
+ * distribution.
  *
  * A, B, and C denote submatrices (BLK_DIM x BLK_DIM) and n is blk_num
  *
@@ -16,8 +17,11 @@
  * Work id (0 <= id < n^2) is associated with each computation as follows
  *   (i, j) = (id / n, id % n)
  *
- * The master process allocates entire matrices A and B. The worker processes
- * read blocks of A and B from master's memory to calculate distinct blocks of C.
+ * The master process allocates entire matrices A, B, and C. The worker processes
+ * read submatrices of A and B directly from master's memory to calculate distinct
+ * submatrices of C. Each worker stores the value of the submatrix of C that it
+ * computes back into master's memory. The global counter is used for dynamic workload
+ * distribution.
  */
 
 int is_zero_local(double *local_mat);
