@@ -89,6 +89,19 @@ int main(int argc, char **argv)
     MPI_Type_vector(by, 1, bx + 2, MPI_DOUBLE, &east_west_type);
     MPI_Type_commit(&east_west_type);
 
+    /* prepare arguments of neighborhood alltoallw (W, E, N, S) */
+    int counts[4] = { 1, 1, bx, bx };
+    MPI_Aint sdispls[4], rdispls[4];
+    MPI_Datatype types[4] = { east_west_type, east_west_type, MPI_DOUBLE, MPI_DOUBLE };
+    rdispls[0] = ind(0, 1) * sizeof(double);
+    rdispls[1] = ind(bx + 1, 1) * sizeof(double);
+    rdispls[2] = ind(1, 0) * sizeof(double);
+    rdispls[3] = ind(1, by + 1) * sizeof(double);
+    sdispls[0] = ind(1, 1) * sizeof(double);
+    sdispls[1] = ind(bx, 1) * sizeof(double);
+    sdispls[2] = ind(1, 1) * sizeof(double);
+    sdispls[3] = ind(1, by) * sizeof(double);
+
     t1 = MPI_Wtime();   /* take time */
 
     for (iter = 0; iter < niters; ++iter) {
@@ -99,11 +112,7 @@ int main(int argc, char **argv)
         }
 
         /* exchange data with neighbors */
-        int counts[4] = { bx, bx, 1, 1 };
-        MPI_Aint sdispls[4] = { ind(1, 1), ind(1, by), ind(1, 1), ind(bx, 1) }; /* N, S, W, E */
-        MPI_Aint rdispls[4] = { ind(1, 0), ind(1, by + 1), ind(0, 1), ind(bx + 1, 1) };
-        MPI_Datatype types[4] = { MPI_DOUBLE, MPI_DOUBLE, east_west_type, east_west_type };
-        MPI_Neighbor_alltoallw(aold, counts, sdispls, types, anew, counts, rdispls, types,
+        MPI_Neighbor_alltoallw(aold, counts, sdispls, types, aold, counts, rdispls, types,
                                cart_comm);
 
         /* update grid points */
@@ -127,6 +136,7 @@ int main(int argc, char **argv)
     free(anew);
 
     MPI_Type_free(&east_west_type);
+    MPI_Comm_free(&cart_comm);
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);

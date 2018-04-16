@@ -136,6 +136,7 @@ int main(int argc, char **argv)
     free(anew);
 
     MPI_Type_free(&east_west_type);
+    MPI_Comm_free(&cart_comm);
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
