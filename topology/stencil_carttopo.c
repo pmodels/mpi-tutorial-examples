@@ -100,19 +100,16 @@ int main(int argc, char **argv)
 
         /* exchange data with neighbors */
         MPI_Request reqs[8];
-        MPI_Isend(&aold[ind(1, 1)] /* north */ , bx, MPI_DOUBLE, north, 9, cart_comm,
-                  &reqs[0]);
-        MPI_Isend(&aold[ind(1, by)] /* south */ , bx, MPI_DOUBLE, south, 9, cart_comm,
-                  &reqs[1]);
+        MPI_Isend(&aold[ind(1, 1)] /* north */ , bx, MPI_DOUBLE, north, 9, cart_comm, &reqs[0]);
+        MPI_Isend(&aold[ind(1, by)] /* south */ , bx, MPI_DOUBLE, south, 9, cart_comm, &reqs[1]);
         MPI_Isend(&aold[ind(bx, 1)] /* east */ , 1, east_west_type, east, 9, cart_comm, &reqs[2]);
         MPI_Isend(&aold[ind(1, 1)] /* west */ , 1, east_west_type, west, 9, cart_comm, &reqs[3]);
-        MPI_Irecv(&aold[ind(1, 0)] /* north */ , bx, MPI_DOUBLE, north, 9, cart_comm,
-                  &reqs[4]);
+        MPI_Irecv(&aold[ind(1, 0)] /* north */ , bx, MPI_DOUBLE, north, 9, cart_comm, &reqs[4]);
         MPI_Irecv(&aold[ind(1, by + 1)] /* south */ , bx, MPI_DOUBLE, south, 9, cart_comm,
                   &reqs[5]);
-        MPI_Irecv(&aold[ind(bx + 1, 1)] /* west */ , 1, east_west_type, east, 9, cart_comm,
+        MPI_Irecv(&aold[ind(bx + 1, 1)] /* east */ , 1, east_west_type, east, 9, cart_comm,
                   &reqs[6]);
-        MPI_Irecv(&aold[ind(0, 1)] /* east */ , 1, east_west_type, west, 9, cart_comm, &reqs[7]);
+        MPI_Irecv(&aold[ind(0, 1)] /* west */ , 1, east_west_type, west, 9, cart_comm, &reqs[7]);
         MPI_Waitall(8, reqs, MPI_STATUS_IGNORE);
 
         /* update grid points */
