@@ -54,8 +54,9 @@ int main(int argc, char **argv)
 
     /* Create a communicator with a topology */
     MPI_Comm cart_comm;
-    int dims[2] = { 0, 0 }, periods[2] = {
-    0, 0}, coords[2];
+    int dims[2] = { 0, 0 };
+    int periods[2] = { 0, 0 };
+    int coords[2];
 
     MPI_Dims_create(size, 2, dims);
     MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &cart_comm);
@@ -74,18 +75,16 @@ int main(int argc, char **argv)
     /* printf("%i (%i,%i) - w: %i, e: %i, n: %i, s: %i\n", rank, ry,rx,west,east,north,south); */
 
     /* allocate working arrays & communication buffers */
-    MPI_Alloc_mem((bx + 2) * (by + 2) * sizeof(double), MPI_INFO_NULL, &aold);  /* 1-wide halo zones! */
-    MPI_Alloc_mem((bx + 2) * (by + 2) * sizeof(double), MPI_INFO_NULL, &anew);  /* 1-wide halo zones! */
+    aold = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
+    anew = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
+
+    memset(aold, 0, (bx + 2) * (by + 2) * sizeof(double));
+    memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));
 
     /* initialize three heat sources */
     init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
 
-    /* create north-south datatype */
-    MPI_Datatype north_south_type;
-    MPI_Type_contiguous(bx, MPI_DOUBLE, &north_south_type);
-    MPI_Type_commit(&north_south_type);
-
-    /* create east-west type */
+    /* create east-west datatype */
     MPI_Datatype east_west_type;
     MPI_Type_vector(by, 1, bx + 2, MPI_DOUBLE, &east_west_type);
     MPI_Type_commit(&east_west_type);
@@ -101,15 +100,15 @@ int main(int argc, char **argv)
 
         /* exchange data with neighbors */
         MPI_Request reqs[8];
-        MPI_Isend(&aold[ind(1, 1)] /* north */ , 1, north_south_type, north, 9, cart_comm,
+        MPI_Isend(&aold[ind(1, 1)] /* north */ , bx, MPI_DOUBLE, north, 9, cart_comm,
                   &reqs[0]);
-        MPI_Isend(&aold[ind(1, by)] /* south */ , 1, north_south_type, south, 9, cart_comm,
+        MPI_Isend(&aold[ind(1, by)] /* south */ , bx, MPI_DOUBLE, south, 9, cart_comm,
                   &reqs[1]);
         MPI_Isend(&aold[ind(bx, 1)] /* east */ , 1, east_west_type, east, 9, cart_comm, &reqs[2]);
         MPI_Isend(&aold[ind(1, 1)] /* west */ , 1, east_west_type, west, 9, cart_comm, &reqs[3]);
-        MPI_Irecv(&aold[ind(1, 0)] /* north */ , 1, north_south_type, north, 9, cart_comm,
+        MPI_Irecv(&aold[ind(1, 0)] /* north */ , bx, MPI_DOUBLE, north, 9, cart_comm,
                   &reqs[4]);
-        MPI_Irecv(&aold[ind(1, by + 1)] /* south */ , 1, north_south_type, south, 9, cart_comm,
+        MPI_Irecv(&aold[ind(1, by + 1)] /* south */ , bx, MPI_DOUBLE, south, 9, cart_comm,
                   &reqs[5]);
         MPI_Irecv(&aold[ind(bx + 1, 1)] /* west */ , 1, east_west_type, east, 9, cart_comm,
                   &reqs[6]);
@@ -133,11 +132,10 @@ int main(int argc, char **argv)
     t2 = MPI_Wtime();
 
     /* free working arrays and communication buffers */
-    MPI_Free_mem(aold);
-    MPI_Free_mem(anew);
+    free(aold);
+    free(anew);
 
     MPI_Type_free(&east_west_type);
-    MPI_Type_free(&north_south_type);
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -145,6 +143,7 @@ int main(int argc, char **argv)
         printf("[%i] last heat: %f time: %f\n", rank, rheat, t2 - t1);
 
     MPI_Finalize();
+    return 0;
 }
 
 void setup(int rank, int proc, int argc, char **argv,
