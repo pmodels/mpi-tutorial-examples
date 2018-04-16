@@ -30,8 +30,9 @@ int main(int argc, char **argv)
     int locnsources;            /* number of sources in my area */
     int locsources[nsources][2];        /* sources local to my rank */
 
-    int *send_counts, *recv_counts, *sdispls, *rdispls;
-    MPI_Datatype *alltoallw_types;
+    int *send_counts, *recv_counts;
+    int *sdispls, *rdispls;
+    MPI_Datatype *types;
 
     double t1, t2;
 
@@ -108,7 +109,6 @@ int main(int argc, char **argv)
     memset(send_counts, 0, size * sizeof(int));
 
     recv_counts = (int *) malloc(size * sizeof(int));
-    memset(recv_counts, 0, size * sizeof(int));
 
     sdispls = (int *) malloc(size * sizeof(int));
     memset(sdispls, 0, size * sizeof(int));
@@ -116,38 +116,38 @@ int main(int argc, char **argv)
     rdispls = (int *) malloc(size * sizeof(int));
     memset(rdispls, 0, size * sizeof(int));
 
-    alltoallw_types = (MPI_Datatype *) malloc(size * sizeof(MPI_Datatype));
+    types = (MPI_Datatype *) malloc(size * sizeof(MPI_Datatype));
     for (i = 0; i < size; i++)
-        alltoallw_types[i] = MPI_DATATYPE_NULL;
+        types[i] = MPI_DATATYPE_NULL;
 
     if (north != MPI_PROC_NULL) {
         send_counts[north] = 1;
-        recv_counts[north] = 1;
         sdispls[north] = ind(1, 1) * sizeof(double);
         rdispls[north] = ind(1, 0) * sizeof(double);
-        alltoallw_types[north] = north_south_type;
+        types[north] = north_south_type;
     }
     if (south != MPI_PROC_NULL) {
         send_counts[south] = 1;
-        recv_counts[south] = 1;
         sdispls[south] = ind(1, by) * sizeof(double);
         rdispls[south] = ind(1, by + 1) * sizeof(double);
-        alltoallw_types[south] = north_south_type;
+        types[south] = north_south_type;
     }
     if (east != MPI_PROC_NULL) {
         send_counts[east] = 1;
-        recv_counts[east] = 1;
         sdispls[east] = ind(bx, 1) * sizeof(double);
         rdispls[east] = ind(bx + 1, 1) * sizeof(double);
-        alltoallw_types[east] = east_west_type;
+        types[east] = east_west_type;
     }
     if (west != MPI_PROC_NULL) {
         send_counts[west] = 1;
-        recv_counts[west] = 1;
         sdispls[west] = ind(1, 1) * sizeof(double);
         rdispls[west] = ind(0, 1) * sizeof(double);
-        alltoallw_types[west] = east_west_type;
+        types[west] = east_west_type;
     }
+
+    /* use different count parameters because some MPI implementations do not consider displacements
+     * in aliasing check */
+    memcpy(recv_counts, send_counts, size * sizeof(int));
 
     t1 = MPI_Wtime();   /* take time */
 
@@ -158,8 +158,8 @@ int main(int argc, char **argv)
             aold[ind(locsources[i][0], locsources[i][1])] += energy;    /* heat source */
         }
 
-        MPI_Alltoallw(aold, send_counts, sdispls, alltoallw_types, aold,
-                      recv_counts, rdispls, alltoallw_types, MPI_COMM_WORLD);
+        MPI_Alltoallw(aold, send_counts, sdispls, types, aold, recv_counts, rdispls, types,
+                      MPI_COMM_WORLD);
 
         /* update grid points */
         update_grid(bx, by, aold, anew, &heat);
@@ -183,7 +183,7 @@ int main(int argc, char **argv)
     free(recv_counts);
     free(sdispls);
     free(rdispls);
-    free(alltoallw_types);
+    free(types);
 
     MPI_Type_free(&east_west_type);
     MPI_Type_free(&north_south_type);
