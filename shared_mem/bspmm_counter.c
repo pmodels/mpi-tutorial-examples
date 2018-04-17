@@ -122,7 +122,7 @@ int main(int argc, char **argv)
 	do {
         /* read and increment global counter atomically */
         MPI_Fetch_and_op(&one, &work_id, MPI_INT, 0, 0, MPI_SUM, win_counter);
-        MPI_Win_sync(win_counter); /* synchronize private and public window copies */
+        MPI_Win_flush(0, win_counter); /* MEM_MODE: update to target public window */
 		if (work_id >= work_id_len)
             break;
 		
