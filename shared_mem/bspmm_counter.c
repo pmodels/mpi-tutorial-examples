@@ -28,6 +28,12 @@ int is_zero_local(double *local_mat);
 
 void dgemm_increment_c(double *local_a, double *local_b, double *local_c);
 
+void pack_global_to_local(double *local_mat, double *global_mat, int mat_dim, int global_i,
+                          int global_j);
+
+void unpack_local_to_global(double *global_mat, double *local_mat, int mat_dim, int global_i,
+                            int global_j);
+
 int main(int argc, char **argv)
 {
     int rank, nprocs;
@@ -36,7 +42,6 @@ int main(int argc, char **argv)
     double *mat_a, *mat_b, *mat_c;
     double *local_a, *local_b, *local_c;
 	double *Aptr, *Bptr, *Cptr;
-    MPI_Aint offset_a, offset_b, offset_c;
 
     double *win_mem;
     int *counter_win_mem;
@@ -134,22 +139,15 @@ int main(int argc, char **argv)
     	/* initialize the value of local_c */
 		memset(local_c, 0, BLK_DIM * BLK_DIM * sizeof(double));
 		
-		int block_i, block_j;
 		for (global_k = 0; global_k < blk_num; global_k++) {
             /* get block from mat_a in shared memory */
-			offset_a = global_i * BLK_DIM * mat_dim + global_k * BLK_DIM;
-			for (block_i = 0; block_i < BLK_DIM; block_i++)
-				for (block_j = 0; block_j < BLK_DIM; block_j++)
-					local_a[block_i*BLK_DIM + block_j] = Aptr[offset_a + block_i*mat_dim + block_j];
+			pack_global_to_local(local_a, Aptr, mat_dim, global_i, global_k);
 
 			if (is_zero_local(local_a))
 				continue;
 			
 			/* get block from mat_b in shared memory */
-            offset_b = global_k * BLK_DIM * mat_dim + global_j * BLK_DIM;
-            for (block_i = 0; block_i < BLK_DIM; block_i++)
-				for (block_j = 0; block_j < BLK_DIM; block_j++)
-					local_b[block_i*BLK_DIM + block_j] = Bptr[offset_b + block_i*mat_dim + block_j];
+			pack_global_to_local(local_b, Bptr, mat_dim, global_k, global_j);
 
             if (is_zero_local(local_b))
                 continue;
@@ -159,10 +157,7 @@ int main(int argc, char **argv)
 		}
 
 		/* store the value of local_c into the shared memory */
-		offset_c = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
-		for (block_i = 0; block_i < BLK_DIM; block_i++)
-			for (block_j = 0; block_j < BLK_DIM; block_j++)
-				Cptr[offset_c + block_i*mat_dim + block_j] = local_c[block_i*BLK_DIM + block_j];
+		unpack_local_to_global(Cptr, local_c, mat_dim, global_i, global_j);
 		MPI_Win_sync(win);      /* MEM_MODE: synchronize private and public window copies */
     } while (work_id < work_id_len);
 
@@ -209,5 +204,29 @@ void dgemm_increment_c(double *local_a, double *local_b, double *local_c)
             for (k = 0; k < BLK_DIM; k++)
                 local_c[j + i * BLK_DIM] += local_a[k + i * BLK_DIM] * local_b[j + k * BLK_DIM];
         }
+    }
+}
+
+void pack_global_to_local(double *local_mat, double *global_mat, int mat_dim, int global_i,
+                          int global_j)
+{
+    int i, j;
+    int offset = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
+
+    for (i = 0; i < BLK_DIM; i++) {
+        for (j = 0; j < BLK_DIM; j++)
+            local_mat[j + i * BLK_DIM] = global_mat[offset + j + i * mat_dim];
+    }
+}
+
+void unpack_local_to_global(double *global_mat, double *local_mat, int mat_dim, int global_i,
+                            int global_j)
+{
+    int i, j;
+    int offset = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
+
+    for (i = 0; i < BLK_DIM; i++) {
+        for (j = 0; j < BLK_DIM; j++)
+            global_mat[offset + j + i * mat_dim] = local_mat[j + i * BLK_DIM];
     }
 }
