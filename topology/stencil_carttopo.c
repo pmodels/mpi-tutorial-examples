@@ -6,12 +6,11 @@
  */
 
 /*
- * 2D stencil code using topology-aware communicators and nonblocking send/receive.
+ * 2D stencil code using cartesian topology and nonblocking send/receive.
  *
  * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
  * In every iteration, each process calls nonblocking operations with derived data types to exchange
- * grid points in a halo region with neighbors. Communications are done with topology-aware
- * communicators.
+ * grid points in a halo region with neighbors. Neighbors are calculated with cartesian topology.
  */
 
 #include "stencil_par.h"

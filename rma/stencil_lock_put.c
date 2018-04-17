@@ -1,4 +1,5 @@
 /*
+:1
  * Copyright (c) 2012 Torsten Hoefler. All rights reserved.
  *
  * Author(s): Torsten Hoefler <htor@illinois.edu>
@@ -6,11 +7,11 @@
  */
 
 /*
- * 2D stencil code using an RMA put operation and a barrier.
+ * 2D stencil code using RMA put operations and lockall synchronization.
  *
  * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
- * In every iteration, each process issues RMA operations to put its outer grid points to neighbors
- * and performs a barrier to synchronize RMA operations.
+ * In every iteration, each process issues RMA operations to put its outer grid points to neighbors'
+ * halo regions and performs a flush_all and a barrier to synchronize RMA operations.
  */
 
 #include "stencil_par.h"

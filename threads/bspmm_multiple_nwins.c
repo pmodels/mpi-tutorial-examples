@@ -22,7 +22,7 @@
  * with each thread working on a different submatrix. The distribution of work between
  * the threads of all the workers is dynamic: each thread reads a counter to obtain its
  * work id. The counter is updated atomically each time it is read. Each thread updates
- * the submatrix of C that it is working on atomically. Each thread also has its own memory
+ * the submatrix of C that it is working on atomically. Each thread also has its own RMA
  * window of the same memory region of matrices A and B; this separates the flushes of RMA
  * read operations of different threads.
  */

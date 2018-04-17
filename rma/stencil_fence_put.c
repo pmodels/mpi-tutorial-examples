@@ -6,11 +6,11 @@
  */
 
 /*
- * 2D stencil code using an RMA put operation and a fence synchronization on a window.
+ * 2D stencil code using RMA put operations and fence synchronization.
  *
  * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
- * In every iteration, each process issues RMA operations to put its outer grid points to neighbors
- * and performs a fence synchronization on a window.
+ * In every iteration, each process issues RMA operations to put its outer grid points to neighbors'
+ * halo regions and performs a fence synchronization on a window.
  */
 
 #include "stencil_par.h"

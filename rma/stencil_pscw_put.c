@@ -6,11 +6,12 @@
  */
 
 /*
- * 2D stencil code using an RMA put operation and an RMA exposure epoch.
+ * 2D stencil code using RMA put operations and PSCW synchronization.
  *
  * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
- * In every iteration, each process starts an exposure epoch to neighbors and issues RMA operations
- * to put its outer grid points to neighbors. RMA operations are synchronized by closing the epoch.
+ * In every iteration, each process starts an RMA epoch (post-start) with neighbors and issues RMA
+ * operations to put its outer grid points to neighbors' halo regions. RMA operations are synchronized
+ * by closing the epoch (complete-wait).
  */
 
 #include "stencil_par.h"
