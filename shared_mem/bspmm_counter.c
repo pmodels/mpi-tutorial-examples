@@ -161,12 +161,12 @@ int main(int argc, char **argv)
     } while (work_id < work_id_len);
 
 	/* sync here instead of right-after-store since each rank is updating distinct C-blocks and is not dependent on other C-blocks */
-	MPI_Win_sync(win);      /* MEM_MODE: synchronize private and public window copies */
+	MPI_Win_sync(win);      /* MEM_MODE: ensure completion of local updates before MPI_Barrier */
     MPI_Barrier(MPI_COMM_WORLD);
     t2 = MPI_Wtime();
 
     if (!rank) {
-        MPI_Win_sync(win);      /* MEM_MODE: synchronize private and public window copies */
+        MPI_Win_sync(win);      /* MEM_MODE: ensure remote updates are locally visible */
         check_mats(mat_a, mat_b, mat_c, mat_dim);
         printf("[%i] time: %f\n", rank, t2 - t1);
     }
