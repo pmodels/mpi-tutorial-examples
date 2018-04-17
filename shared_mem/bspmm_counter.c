@@ -41,7 +41,7 @@ int main(int argc, char **argv)
     int work_id, work_id_len;
     double *mat_a, *mat_b, *mat_c;
     double *local_a, *local_b, *local_c;
-	double *mat_a_ptr, *mat_b_ptr, *mat_c_ptr;
+    double *mat_a_ptr, *mat_b_ptr, *mat_c_ptr;
 
     double *win_mem;
     int *counter_win_mem;
@@ -55,16 +55,16 @@ int main(int argc, char **argv)
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
-	
-	/* create shared memory communicator */
-	MPI_Comm shm_comm;
-	MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &shm_comm);
-	
-	int shm_rank, shm_procs;
+
+    /* create shared memory communicator */
+    MPI_Comm shm_comm;
+    MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &shm_comm);
+
+    int shm_rank, shm_procs;
     MPI_Comm_size(shm_comm, &shm_procs);
     MPI_Comm_rank(shm_comm, &shm_rank);
 
-	/* works only when all processes are in the same shared memory region */
+    /* works only when all processes are in the same shared memory region */
     if (shm_procs != nprocs)
         MPI_Abort(MPI_COMM_WORLD, 1);
 
@@ -76,13 +76,13 @@ int main(int argc, char **argv)
 
     /* number of blocks in one dimension */
     blk_num = mat_dim / BLK_DIM;
-	
-	if (!rank) {
+
+    if (!rank) {
         /* create RMA windows */
         MPI_Win_allocate_shared(3 * mat_dim * mat_dim * sizeof(double), sizeof(double),
-                         MPI_INFO_NULL, shm_comm, &win_mem, &win);
+                                MPI_INFO_NULL, shm_comm, &win_mem, &win);
         MPI_Win_allocate_shared(sizeof(int), sizeof(int),
-                         MPI_INFO_NULL, shm_comm, &counter_win_mem, &win_counter);
+                                MPI_INFO_NULL, shm_comm, &counter_win_mem, &win_counter);
         mat_a = win_mem;
         mat_b = mat_a + mat_dim * mat_dim;
         mat_c = mat_b + mat_dim * mat_dim;
@@ -100,15 +100,15 @@ int main(int argc, char **argv)
     } else {
         MPI_Win_allocate_shared(0, sizeof(double), MPI_INFO_NULL, shm_comm, &win_mem, &win);
         MPI_Win_allocate_shared(0, sizeof(int), MPI_INFO_NULL, shm_comm, &counter_win_mem,
-                         &win_counter);
+                                &win_counter);
     }
-	
-	/* acquire rank-0's pointer to all the three matrices */
-	MPI_Aint win_sz;
-	int disp_unit;
-	MPI_Win_shared_query(win, 0, &win_sz, &disp_unit, &mat_a_ptr);
-	mat_b_ptr = mat_a_ptr + mat_dim * mat_dim;
-	mat_c_ptr = mat_b_ptr + mat_dim * mat_dim;
+
+    /* acquire rank-0's pointer to all the three matrices */
+    MPI_Aint win_sz;
+    int disp_unit;
+    MPI_Win_shared_query(win, 0, &win_sz, &disp_unit, &mat_a_ptr);
+    mat_b_ptr = mat_a_ptr + mat_dim * mat_dim;
+    mat_c_ptr = mat_b_ptr + mat_dim * mat_dim;
 
     /* allocate local buffer */
     local_a = (double *) malloc(3 * BLK_DIM * BLK_DIM * sizeof(double));
@@ -124,44 +124,44 @@ int main(int argc, char **argv)
 
     t1 = MPI_Wtime();
 
-	do {
+    do {
         /* read and increment global counter atomically */
         MPI_Fetch_and_op(&one, &work_id, MPI_INT, 0, 0, MPI_SUM, win_counter);
-        MPI_Win_flush(0, win_counter); /* MEM_MODE: update to target public window */
-		if (work_id >= work_id_len)
+        MPI_Win_flush(0, win_counter);  /* MEM_MODE: update to target public window */
+        if (work_id >= work_id_len)
             break;
-		
-		/* calculate global ids from the work_id */
-		int global_i = work_id / blk_num;
-		int global_j = work_id % blk_num;
+
+        /* calculate global ids from the work_id */
+        int global_i = work_id / blk_num;
+        int global_j = work_id % blk_num;
         int global_k;
 
-    	/* initialize the value of local_c */
-		memset(local_c, 0, BLK_DIM * BLK_DIM * sizeof(double));
-		
-		for (global_k = 0; global_k < blk_num; global_k++) {
-            /* get block from mat_a in shared memory */
-			pack_global_to_local(local_a, mat_a_ptr, mat_dim, global_i, global_k);
+        /* initialize the value of local_c */
+        memset(local_c, 0, BLK_DIM * BLK_DIM * sizeof(double));
 
-			if (is_zero_local(local_a))
-				continue;
-			
-			/* get block from mat_b in shared memory */
-			pack_global_to_local(local_b, mat_b_ptr, mat_dim, global_k, global_j);
+        for (global_k = 0; global_k < blk_num; global_k++) {
+            /* get block from mat_a in shared memory */
+            pack_global_to_local(local_a, mat_a_ptr, mat_dim, global_i, global_k);
+
+            if (is_zero_local(local_a))
+                continue;
+
+            /* get block from mat_b in shared memory */
+            pack_global_to_local(local_b, mat_b_ptr, mat_dim, global_k, global_j);
 
             if (is_zero_local(local_b))
                 continue;
 
             /* compute Cij += Aik * Bkj only if both local_a and local_b are nonzero */
             dgemm_increment_c(local_a, local_b, local_c);
-		}
+        }
 
-		/* store the value of local_c into the shared memory */
-		unpack_local_to_global(mat_c_ptr, local_c, mat_dim, global_i, global_j);
+        /* store the value of local_c into the shared memory */
+        unpack_local_to_global(mat_c_ptr, local_c, mat_dim, global_i, global_j);
     } while (work_id < work_id_len);
 
-	/* sync here instead of right-after-store since each rank is updating distinct C-blocks and is not dependent on other C-blocks */
-	MPI_Win_sync(win);      /* MEM_MODE: ensure completion of local updates before MPI_Barrier */
+    /* sync here instead of right-after-store since each rank is updating distinct C-blocks and is not dependent on other C-blocks */
+    MPI_Win_sync(win);  /* MEM_MODE: ensure completion of local updates before MPI_Barrier */
     MPI_Barrier(MPI_COMM_WORLD);
     t2 = MPI_Wtime();
 
@@ -177,7 +177,7 @@ int main(int argc, char **argv)
     free(local_a);
     MPI_Win_free(&win_counter);
     MPI_Win_free(&win);
-	MPI_Comm_free(&shm_comm);
+    MPI_Comm_free(&shm_comm);
 
     MPI_Finalize();
     return 0;
