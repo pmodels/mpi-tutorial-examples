@@ -158,9 +158,10 @@ int main(int argc, char **argv)
 
 		/* store the value of local_c into the shared memory */
 		unpack_local_to_global(Cptr, local_c, mat_dim, global_i, global_j);
-		MPI_Win_sync(win);      /* MEM_MODE: synchronize private and public window copies */
     } while (work_id < work_id_len);
 
+	/* sync here instead of right-after-store since each rank is updating distinct C-blocks and is not dependent on other C-blocks */
+	MPI_Win_sync(win);      /* MEM_MODE: synchronize private and public window copies */
     MPI_Barrier(MPI_COMM_WORLD);
     t2 = MPI_Wtime();
 
