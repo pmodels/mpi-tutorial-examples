@@ -155,7 +155,7 @@ int main(int argc, char **argv)
         /* exchange data with neighbors */
         if (north != MPI_PROC_NULL) {
             for (i = 0; i < bx; ++i)
-                aold[ind(i + 1, 0)] = northptr_old[ind(i + 1, by)];     /* pack loop - last valid region */
+                aold[ind(i + 1, 0)] = northptr_old[ind(i + 1, by)];     /* pack loop */
         }
         if (south != MPI_PROC_NULL) {
             for (i = 0; i < bx; ++i)
