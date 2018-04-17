@@ -41,7 +41,7 @@ int main(int argc, char **argv)
     int work_id, work_id_len;
     double *mat_a, *mat_b, *mat_c;
     double *local_a, *local_b, *local_c;
-	double *Aptr, *Bptr, *Cptr;
+	double *mat_a_ptr, *mat_b_ptr, *mat_c_ptr;
 
     double *win_mem;
     int *counter_win_mem;
@@ -106,9 +106,9 @@ int main(int argc, char **argv)
 	/* acquire rank-0's pointer to all the three matrices */
 	MPI_Aint win_sz;
 	int disp_unit;
-	MPI_Win_shared_query(win, 0, &win_sz, &disp_unit, &Aptr);
-	Bptr = Aptr + mat_dim * mat_dim;
-	Cptr = Bptr + mat_dim * mat_dim;
+	MPI_Win_shared_query(win, 0, &win_sz, &disp_unit, &mat_a_ptr);
+	mat_b_ptr = mat_a_ptr + mat_dim * mat_dim;
+	mat_c_ptr = mat_b_ptr + mat_dim * mat_dim;
 
     /* allocate local buffer */
     local_a = (double *) malloc(3 * BLK_DIM * BLK_DIM * sizeof(double));
@@ -141,13 +141,13 @@ int main(int argc, char **argv)
 		
 		for (global_k = 0; global_k < blk_num; global_k++) {
             /* get block from mat_a in shared memory */
-			pack_global_to_local(local_a, Aptr, mat_dim, global_i, global_k);
+			pack_global_to_local(local_a, mat_a_ptr, mat_dim, global_i, global_k);
 
 			if (is_zero_local(local_a))
 				continue;
 			
 			/* get block from mat_b in shared memory */
-			pack_global_to_local(local_b, Bptr, mat_dim, global_k, global_j);
+			pack_global_to_local(local_b, mat_b_ptr, mat_dim, global_k, global_j);
 
             if (is_zero_local(local_b))
                 continue;
@@ -157,7 +157,7 @@ int main(int argc, char **argv)
 		}
 
 		/* store the value of local_c into the shared memory */
-		unpack_local_to_global(Cptr, local_c, mat_dim, global_i, global_j);
+		unpack_local_to_global(mat_c_ptr, local_c, mat_dim, global_i, global_j);
     } while (work_id < work_id_len);
 
 	/* sync here instead of right-after-store since each rank is updating distinct C-blocks and is not dependent on other C-blocks */
