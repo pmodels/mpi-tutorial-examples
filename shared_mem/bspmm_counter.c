@@ -112,8 +112,8 @@ int main(int argc, char **argv)
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    MPI_Win_lock_all(0, win);
-    MPI_Win_lock_all(0, win_counter);
+    MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win);
+    MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win_counter);
 
     work_id_len = blk_num * blk_num;
 
@@ -175,8 +175,8 @@ int main(int argc, char **argv)
         printf("[%i] time: %f\n", rank, t2 - t1);
     }
 
-    MPI_Win_unlock_all(win_counter);
-    MPI_Win_unlock_all(win);
+    MPI_Win_unlock(0, win_counter);
+    MPI_Win_unlock(0, win);
 
     free(local_a);
     MPI_Win_free(&win_counter);
