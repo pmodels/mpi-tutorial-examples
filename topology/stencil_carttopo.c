@@ -63,9 +63,10 @@ int main(int argc, char **argv)
 
     /* Create a communicator with a topology */
     MPI_Comm cart_comm;
-    int dims[2] = { 0, 0 };
+    int dims[2], coords[2];
     int periods[2] = { 0, 0 };
-    int coords[2];
+    dims[0] = px;
+    dims[1] = py;
 
     MPI_Dims_create(size, 2, dims);
     MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &cart_comm);
