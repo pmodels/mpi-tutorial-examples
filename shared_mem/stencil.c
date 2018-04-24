@@ -115,7 +115,7 @@ int main(int argc, char **argv)
 
     /* printf("%i (%i,%i) - w: %i, e: %i, n: %i, s: %i\n", rank, ry,rx,west,east,north,south); */
 
-    grid_size = bx * by;        /* process-local grid (including halos) */
+    grid_size = bx * by;        /* process-local grid */
 
     /* create shared RMA window upon working array */
     MPI_Win_allocate_shared(2 * grid_size * sizeof(double), sizeof(double), MPI_INFO_NULL, shm_comm,
