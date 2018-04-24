@@ -24,15 +24,10 @@
  * distribution.
  */
 
-int is_zero_local(double *local_mat);
+int is_zero_block(double *mat, int offset, int mat_dim);
 
-void dgemm_increment_c(double *local_a, double *local_b, double *local_c);
-
-void pack_global_to_local(double *local_mat, double *global_mat, int mat_dim, int global_i,
-                          int global_j);
-
-void unpack_local_to_global(double *global_mat, double *local_mat, int mat_dim, int global_i,
-                            int global_j);
+void dgemm_increment_c(double *mat_a, double *mat_b, double *mat_c, int offset_a,
+                       int offset_b, int offset_c, int mat_dim);
 
 int main(int argc, char **argv)
 {
@@ -40,7 +35,6 @@ int main(int argc, char **argv)
     int mat_dim, blk_num;
     int work_id, work_id_len;
     double *mat_a, *mat_b, *mat_c;
-    double *local_a, *local_b, *local_c;
     double *mat_a_ptr, *mat_b_ptr, *mat_c_ptr;
 
     double *win_mem;
@@ -110,11 +104,6 @@ int main(int argc, char **argv)
     mat_b_ptr = mat_a_ptr + mat_dim * mat_dim;
     mat_c_ptr = mat_b_ptr + mat_dim * mat_dim;
 
-    /* allocate local buffer */
-    local_a = (double *) malloc(3 * BLK_DIM * BLK_DIM * sizeof(double));
-    local_b = local_a + BLK_DIM * BLK_DIM;
-    local_c = local_b + BLK_DIM * BLK_DIM;
-
     MPI_Barrier(MPI_COMM_WORLD);
 
     MPI_Win_lock(MPI_LOCK_SHARED, 0, 0, win);
@@ -136,28 +125,24 @@ int main(int argc, char **argv)
         int global_j = work_id % blk_num;
         int global_k;
 
-        /* initialize the value of local_c */
-        memset(local_c, 0, BLK_DIM * BLK_DIM * sizeof(double));
+        int offset_a, offset_b, offset_c;
 
         for (global_k = 0; global_k < blk_num; global_k++) {
-            /* get block from mat_a in shared memory */
-            pack_global_to_local(local_a, mat_a_ptr, mat_dim, global_i, global_k);
+            /* compute offsets into matrices A, B, and C */
+            offset_a = global_i * BLK_DIM * mat_dim + global_k * BLK_DIM;
+            offset_b = global_k * BLK_DIM * mat_dim + global_j * BLK_DIM;
+            offset_c = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
 
-            if (is_zero_local(local_a))
+            if (is_zero_block(mat_a_ptr, offset_a, mat_dim))
                 continue;
 
-            /* get block from mat_b in shared memory */
-            pack_global_to_local(local_b, mat_b_ptr, mat_dim, global_k, global_j);
-
-            if (is_zero_local(local_b))
+            if (is_zero_block(mat_b_ptr, offset_b, mat_dim))
                 continue;
 
-            /* compute Cij += Aik * Bkj only if both local_a and local_b are nonzero */
-            dgemm_increment_c(local_a, local_b, local_c);
+            /* compute Cij += Aik * Bkj only if both blocks of A and B are nonzero */
+            dgemm_increment_c(mat_a_ptr, mat_b_ptr, mat_c_ptr, offset_a, offset_b, offset_c,
+                              mat_dim);
         }
-
-        /* store the value of local_c into the shared memory */
-        unpack_local_to_global(mat_c_ptr, local_c, mat_dim, global_i, global_j);
     } while (work_id < work_id_len);
 
     /* sync here instead of right-after-store since each rank is updating distinct C-blocks and is not dependent on other C-blocks */
@@ -174,7 +159,6 @@ int main(int argc, char **argv)
     MPI_Win_unlock(0, win_counter);
     MPI_Win_unlock(0, win);
 
-    free(local_a);
     MPI_Win_free(&win_counter);
     MPI_Win_free(&win);
     MPI_Comm_free(&shm_comm);
@@ -183,51 +167,30 @@ int main(int argc, char **argv)
     return 0;
 }
 
-int is_zero_local(double *local_mat)
+int is_zero_block(double *mat, int offset, int mat_dim)
 {
     int i, j;
 
     for (i = 0; i < BLK_DIM; i++) {
         for (j = 0; j < BLK_DIM; j++) {
-            if (local_mat[j + i * BLK_DIM] != 0.0)
+            if (mat[offset + j + i * mat_dim] != 0.0)
                 return 0;
         }
     }
+
     return 1;
 }
 
-void dgemm_increment_c(double *local_a, double *local_b, double *local_c)
+void dgemm_increment_c(double *mat_a, double *mat_b, double *mat_c, int offset_a,
+                       int offset_b, int offset_c, int mat_dim)
 {
     int i, j, k;
 
-    for (j = 0; j < BLK_DIM; j++) {
-        for (i = 0; i < BLK_DIM; i++) {
+    for (i = 0; i < BLK_DIM; i++) {
+        for (j = 0; j < BLK_DIM; j++) {
             for (k = 0; k < BLK_DIM; k++)
-                local_c[j + i * BLK_DIM] += local_a[k + i * BLK_DIM] * local_b[j + k * BLK_DIM];
+                mat_c[offset_c + j + i * mat_dim] +=
+                    mat_a[offset_a + k + i * mat_dim] * mat_b[offset_b + j + k * mat_dim];
         }
-    }
-}
-
-void pack_global_to_local(double *local_mat, double *global_mat, int mat_dim, int global_i,
-                          int global_j)
-{
-    int i, j;
-    int offset = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
-
-    for (i = 0; i < BLK_DIM; i++) {
-        for (j = 0; j < BLK_DIM; j++)
-            local_mat[j + i * BLK_DIM] = global_mat[offset + j + i * mat_dim];
-    }
-}
-
-void unpack_local_to_global(double *global_mat, double *local_mat, int mat_dim, int global_i,
-                            int global_j)
-{
-    int i, j;
-    int offset = global_i * BLK_DIM * mat_dim + global_j * BLK_DIM;
-
-    for (i = 0; i < BLK_DIM; i++) {
-        for (j = 0; j < BLK_DIM; j++)
-            global_mat[offset + j + i * mat_dim] = local_mat[j + i * BLK_DIM];
     }
 }
