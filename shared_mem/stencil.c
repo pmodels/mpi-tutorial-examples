@@ -14,13 +14,24 @@
 
 #include "stencil_par.h"
 
+/* row-major order */
+#define ind(i,j) ((j)*(bx)+(i))
+
+int ind_f(int i, int j, int bx)
+{
+    return ind(i, j);
+}
+
 void setup(int rank, int proc, int argc, char **argv,
            int *n_ptr, int *energy_ptr, int *niters_ptr, int *px_ptr, int *py_ptr, int *final_flag);
 
 void init_sources(int bx, int by, int offx, int offy, int n,
                   const int nsources, int sources[][2], int *locnsources_ptr, int locsources[][2]);
 
-void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr);
+void update_inner_grid(int bx, int by, double *aold, double *anew, double *heat_ptr);
+void update_outer_grid(int bx, int by, double *aold, double *anew, int north, double *northptr_old,
+                       int south, double *southptr_old, int east, double *eastptr_old, int west,
+                       double *westptr_old, double *heat_ptr);
 
 void swap_ptr(double **ptr1, double **ptr2);
 
@@ -104,7 +115,7 @@ int main(int argc, char **argv)
 
     /* printf("%i (%i,%i) - w: %i, e: %i, n: %i, s: %i\n", rank, ry,rx,west,east,north,south); */
 
-    grid_size = (bx + 2) * (by + 2);    /* process-local grid (including halos (thus +2)) */
+    grid_size = bx * by;        /* process-local grid (including halos) */
 
     /* create shared RMA window upon working array */
     MPI_Win_allocate_shared(2 * grid_size * sizeof(double), sizeof(double), MPI_INFO_NULL, shm_comm,
@@ -142,6 +153,8 @@ int main(int argc, char **argv)
     MPI_Win_lock_all(0, win);
 
     for (iter = 0; iter < niters; ++iter) {
+        double inner_heat, outer_heat;
+
         /* refresh heat sources */
         for (i = 0; i < locnsources; ++i) {
             aold[ind(locsources[i][0], locsources[i][1])] += energy;    /* heat source */
@@ -152,26 +165,13 @@ int main(int argc, char **argv)
         MPI_Win_sync(win);      /* ensure remote updates are locally visible
                                  * (e.g., the first local sync might perform before remote update) */
 
-        /* exchange data with neighbors */
-        if (north != MPI_PROC_NULL) {
-            for (i = 0; i < bx; ++i)
-                aold[ind(i + 1, 0)] = northptr_old[ind(i + 1, by)];     /* pack loop */
-        }
-        if (south != MPI_PROC_NULL) {
-            for (i = 0; i < bx; ++i)
-                aold[ind(i + 1, by + 1)] = southptr_old[ind(i + 1, 1)]; /* pack loop */
-        }
-        if (east != MPI_PROC_NULL) {
-            for (i = 0; i < by; ++i)
-                aold[ind(bx + 1, i + 1)] = eastptr_old[ind(1, i + 1)];  /* pack loop */
-        }
-        if (west != MPI_PROC_NULL) {
-            for (i = 0; i < by; ++i)
-                aold[ind(0, i + 1)] = westptr_old[ind(bx, i + 1)];      /* pack loop */
-        }
+        /* update inner grid points */
+        update_inner_grid(bx, by, aold, anew, &inner_heat);
 
-        /* update grid points */
-        update_grid(bx, by, aold, anew, &heat);
+        /* update outer grid points */
+        update_outer_grid(bx, by, aold, anew, north, northptr_old, south, southptr_old, east,
+                          eastptr_old, west, westptr_old, &outer_heat);
+        heat = inner_heat + outer_heat;
 
         /* swap working arrays */
         swap_ptr(&aold, &anew);
@@ -182,7 +182,7 @@ int main(int argc, char **argv)
 
         /* optional - print image */
         if (iter == niters - 1)
-            printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, shm_comm);
+            printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, ind_f, MPI_COMM_WORLD);
     }
 
     MPI_Win_unlock_all(win);
@@ -251,8 +251,8 @@ void init_sources(int bx, int by, int offx, int offy, int n,
         int locx = sources[i][0] - offx;
         int locy = sources[i][1] - offy;
         if (locx >= 0 && locx < bx && locy >= 0 && locy < by) {
-            locsources[locnsources][0] = locx + 1;      /* offset by halo zone */
-            locsources[locnsources][1] = locy + 1;      /* offset by halo zone */
+            locsources[locnsources][0] = locx;
+            locsources[locnsources][1] = locy;
             locnsources++;
         }
     }
@@ -261,16 +261,57 @@ void init_sources(int bx, int by, int offx, int offy, int n,
 }
 
 
-void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr)
+void update_inner_grid(int bx, int by, double *aold, double *anew, double *heat_ptr)
 {
     int i, j;
     double heat = 0.0;
 
-    for (i = 1; i < bx + 1; ++i) {
-        for (j = 1; j < by + 1; ++j) {
+    for (i = 1; i < bx - 1; ++i) {
+        for (j = 1; j < by - 1; ++j) {
             anew[ind(i, j)] =
                 anew[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
                                          aold[ind(i, j - 1)] + aold[ind(i, j + 1)]) / 4.0 / 2.0;
+            heat += anew[ind(i, j)];
+        }
+    }
+
+    (*heat_ptr) = heat;
+}
+
+void update_outer_grid(int bx, int by, double *aold, double *anew, int north, double *northptr_old,
+                       int south, double *southptr_old, int east, double *eastptr_old, int west,
+                       double *westptr_old, double *heat_ptr)
+{
+    int i, j;
+    double heat = 0.0;
+
+    for (i = 0; i < bx; ++i) {
+        for (j = 0; j < by; ++j) {
+            if (i >= 1 && j >= 1 && i < bx - 1 && j < by - 1)
+                continue;       /* it has been calculated in update_inner_grid */
+            double north_val, south_val, east_val, west_val;
+            if (j == 0) {
+                north_val = north != MPI_PROC_NULL ? northptr_old[ind(i, by - 1)] : 0.0;
+            } else {
+                north_val = aold[ind(i, j - 1)];
+            }
+            if (j == by - 1) {
+                south_val = south != MPI_PROC_NULL ? southptr_old[ind(i, 0)] : 0.0;
+            } else {
+                south_val = aold[ind(i, j + 1)];
+            }
+            if (i == bx - 1) {
+                east_val = east != MPI_PROC_NULL ? eastptr_old[ind(0, j)] : 0.0;
+            } else {
+                east_val = aold[ind(i + 1, j)];
+            }
+            if (i == 0) {
+                west_val = west != MPI_PROC_NULL ? westptr_old[ind(bx - 1, j)] : 0.0;
+            } else {
+                west_val = aold[ind(i - 1, j)];
+            }
+            anew[ind(i, j)] =
+                anew[ind(i, j)] / 2.0 + (north_val + south_val + east_val + west_val) / 4.0 / 2.0;
             heat += anew[ind(i, j)];
         }
     }

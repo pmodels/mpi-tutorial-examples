@@ -18,6 +18,14 @@
 #include "stencil_par.h"
 #include <omp.h>
 
+/* row-major order */
+#define ind(i,j) ((j)*(bx+2)+(i))
+
+int ind_f(int i, int j, int bx)
+{
+    return  ind(i,j);
+}
+
 #define THX_START (thread_id % nthreads)==0 ? 1 : (thread_id % nthreads) * Thx + 1
 #define THX_END (thread_id % nthreads) == nthreads -1 ? bx + 1 : ((thread_id + 1) % nthreads) * Thx + 1
 
@@ -201,7 +209,7 @@ int main(int argc, char **argv)
 
         /* optional - print image */
         if (iter == niters - 1)
-            printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, MPI_COMM_WORLD);
+            printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, ind_f, MPI_COMM_WORLD);
     }
 
     t2 = MPI_Wtime();

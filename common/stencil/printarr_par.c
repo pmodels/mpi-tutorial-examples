@@ -33,7 +33,7 @@ struct bmpinfo_header {
 };
 
 void printarr_par(int iter, double *array, int size, int px, int py, int rx, int ry, int bx, int by,
-                  int offx, int offy, MPI_Comm comm)
+                  int offx, int offy, int (*ind)(int, int, int), MPI_Comm comm)
 {
 
     int myrank;
@@ -112,7 +112,7 @@ void printarr_par(int iter, double *array, int size, int px, int py, int rx, int
                 if (i / 3 > bx)
                     rgb = 0;
                 else
-                    rgb = (int) round(255.0 * array[ind(i / 3, by - my_ycnt)]);
+                    rgb = (int) round(255.0 * array[ind(i / 3, by - my_ycnt, bx)]);
                 if ((i == 0) || (i / 3 == bx - 1) || (my_ycnt == 0) || (my_ycnt == by - 1))
                     rgb = 255;
                 if (rgb > 255)
