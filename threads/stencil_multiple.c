@@ -22,7 +22,7 @@
 
 int ind_f(int i, int j, int bx)
 {
-    return  ind(i,j);
+    return ind(i, j);
 }
 
 #define THX_START (thread_id % nthreads)==0 ? 1 : (thread_id % nthreads) * Thx + 1

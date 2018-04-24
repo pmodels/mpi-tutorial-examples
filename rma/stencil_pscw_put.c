@@ -21,7 +21,7 @@
 
 int ind_f(int i, int j, int bx)
 {
-    return  ind(i,j);
+    return ind(i, j);
 }
 
 void setup(int rank, int proc, int argc, char **argv,
