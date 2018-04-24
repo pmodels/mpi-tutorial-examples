@@ -13,7 +13,8 @@
  */
 
 #include "stencil_par.h"
-#include "checkpoint.h"
+
+#define MAX_FILENAME_LENGTH (128)
 
 /* row-major order */
 #define ind(i,j) ((j)*(bx+2)+(i))
@@ -40,11 +41,6 @@ int main(int argc, char **argv)
     int north, south, west, east;
     int bx, by, offx, offy;
 
-    int opt_restart_iter;
-
-    char *opt_prefix = NULL;
-    char *old_name, *new_name;
-
     /* three heat sources */
     const int nsources = 3;
     int sources[nsources][2];
@@ -61,9 +57,21 @@ int main(int argc, char **argv)
 
     int final_flag;
 
+    /* Checkpoint/Restart support variables */
+    int err;
+    int amode;                  /* file access mode */
+    int opt_restart_iter;       /* restart iteration */
+    int header[2];              /* file header metadata */
+    char *opt_prefix = NULL;
+    char *old_name, *new_name;  /*aold and anew name prefix */
+    char filename[MAX_FILENAME_LENGTH] = { 0 }; /* checkpoint file name */
+    MPI_File fh;                /* MPI file handle */
+    MPI_Datatype memtype;       /* memory layout */
+    MPI_Datatype filetype;      /* file layout */
+    MPI_Offset myfileoffset;
+
     /* initialize MPI envrionment */
     MPI_Init(&argc, &argv);
-    STENCILIO_Init(MPI_COMM_WORLD);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -76,6 +84,7 @@ int main(int argc, char **argv)
         exit(0);
     }
 
+    /* initialize checkpoint prefix names */
     if (opt_prefix) {
         old_name = (char *) malloc(strlen(opt_prefix) + strlen("_old"));
         new_name = (char *) malloc(strlen(opt_prefix) + strlen("_new"));
@@ -124,10 +133,81 @@ int main(int argc, char **argv)
 
     iter = 0;
 
-    /* Check if can restart */
-    if (opt_restart_iter > 0 && STENCILIO_Can_restart()) {
-        STENCILIO_Restart(old_name, aold, n, coords, bx, by, opt_restart_iter, MPI_INFO_NULL);
-        STENCILIO_Restart(new_name, anew, n, coords, bx, by, opt_restart_iter, MPI_INFO_NULL);
+    /* create memory data layout for later I/O */
+    err = MPI_Type_vector(by, bx, bx + 2, MPI_DOUBLE, &memtype);
+    MPI_Type_commit(&memtype);
+
+    /* create file data layout for later I/O */
+    err = MPI_Type_vector(by, bx, n, MPI_DOUBLE, &filetype);
+    MPI_Type_commit(&filetype);
+
+    /* compute my offset inside file, keeping into account the header (+ 2 * sizeof(int)) */
+    myfileoffset = ((coords[1] * by) * n + coords[0] * bx) * sizeof(double) + 2 * sizeof(int);
+
+    /* Check if restart is needed */
+    if (opt_restart_iter > 0) {
+        snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", old_name, opt_restart_iter);
+
+        /* open aold checkpoint file */
+        amode = MPI_MODE_RDONLY | MPI_MODE_UNIQUE_OPEN;
+        err = MPI_File_open(MPI_COMM_WORLD, filename, amode, MPI_INFO_NULL, &fh);
+        if (err != MPI_SUCCESS) {
+            fprintf(stderr, "Error opening checkpoint file %s.\n", filename);
+            MPI_Abort(MPI_COMM_WORLD, err);
+        }
+
+        /* read header */
+        err = MPI_File_read_at(fh, 0, header, 2, MPI_INT, MPI_STATUS_IGNORE);
+
+        /* have all processes check that nothing went wrong */
+        int gErr;
+        MPI_Allreduce(&err, &gErr, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+        if (gErr || header[0] != n) {
+            if (rank == 0) {
+                fprintf(stderr, "Restart failed.\n");
+            }
+            MPI_Abort(MPI_COMM_WORLD, err);
+        }
+
+        /* set file view */
+        MPI_File_set_view(fh, myfileoffset, MPI_DOUBLE, filetype, "native", MPI_INFO_NULL);
+
+        /* read data */
+        err = MPI_File_read(fh, aold + (bx + 2 + 1), 1, memtype, MPI_STATUS_IGNORE);
+
+        /* close file */
+        err = MPI_File_close(&fh);
+
+        snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", new_name, opt_restart_iter);
+
+        /* open anew checkpoint file */
+        err = MPI_File_open(MPI_COMM_WORLD, filename, amode, MPI_INFO_NULL, &fh);
+        if (err != MPI_SUCCESS) {
+            fprintf(stderr, "Error opening checkpoint file %s.\n", filename);
+            MPI_Abort(MPI_COMM_WORLD, err);
+        }
+
+        /* read header */
+        err = MPI_File_read_at(fh, 0, header, 2, MPI_INT, MPI_STATUS_IGNORE);
+
+        /* have all processes check that nothing went wrong */
+        MPI_Allreduce(&err, &gErr, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+        if (gErr || header[0] != n) {
+            if (rank == 0) {
+                fprintf(stderr, "Restart failed.\n");
+            }
+            MPI_Abort(MPI_COMM_WORLD, err);
+        }
+
+        /* set file view */
+        MPI_File_set_view(fh, myfileoffset, MPI_DOUBLE, filetype, "native", MPI_INFO_NULL);
+
+        /* read data */
+        err = MPI_File_read(fh, anew + (bx + 2 + 1), 1, memtype, MPI_STATUS_IGNORE);
+
+        /* close file */
+        err = MPI_File_close(&fh);
+
         iter = opt_restart_iter + 1;
     }
 
@@ -160,9 +240,51 @@ int main(int argc, char **argv)
         anew = aold;
         aold = tmp;
 
-        /* checkpoint both aold and anew */
-        STENCILIO_Checkpoint(old_name, aold, n, coords, bx, by, iter, MPI_INFO_NULL);
-        STENCILIO_Checkpoint(new_name, anew, n, coords, bx, by, iter, MPI_INFO_NULL);
+/* ==== checkpoint both aold and anew ==== */
+        snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", old_name, iter);
+
+        /* set access mode for checkpoint file to write only */
+        amode = MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_UNIQUE_OPEN;
+
+        /* open aold checkpoint file */
+        err = MPI_File_open(MPI_COMM_WORLD, filename, amode, MPI_INFO_NULL, &fh);
+
+        /* rank 0 writes the header metadata (n, iter) */
+        if (rank == 0) {
+            header[0] = n;
+            header[1] = iter;
+            err = MPI_File_write_at(fh, 0, header, 2, MPI_INT, MPI_STATUS_IGNORE);
+        }
+
+        /* finally, set file view for checkpoint file
+         * think of this as the layout of the receive process in a send/recv op */
+        MPI_File_set_view(fh, myfileoffset, MPI_DOUBLE, filetype, "native", MPI_INFO_NULL);
+
+        /* write aold buffer to file */
+        err = MPI_File_write(fh, aold + (bx + 2 + 1), 1, memtype, MPI_STATUS_IGNORE);
+
+        /* close the file and force data to disk */
+        err = MPI_File_close(&fh);
+
+        /* update file name */
+        snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", new_name, iter);
+
+        /* open anew checkpoint file */
+        err = MPI_File_open(MPI_COMM_WORLD, filename, amode, MPI_INFO_NULL, &fh);
+
+        /* rank 0 writes the header metadata (n, iter) */
+        if (rank == 0) {
+            err = MPI_File_write_at(fh, 0, header, 2, MPI_INT, MPI_STATUS_IGNORE);
+        }
+
+        /* set file view */
+        MPI_File_set_view(fh, myfileoffset, MPI_DOUBLE, filetype, "native", MPI_INFO_NULL);
+
+        /* write anew buffer to file */
+        err = MPI_File_write(fh, anew + (bx + 2 + 1), 1, memtype, MPI_STATUS_IGNORE);
+
+        /* close the file and force data to disk */
+        err = MPI_File_close(&fh);
 
         /* optional - print image */
         if (iter == niters - 1)
@@ -180,13 +302,14 @@ int main(int argc, char **argv)
     free(anew);
 
     MPI_Type_free(&east_west_type);
+    MPI_Type_free(&memtype);
+    MPI_Type_free(&filetype);
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
     if (!rank)
         printf("[%i] last heat: %f time: %f\n", rank, rheat, t2 - t1);
 
-    STENCILIO_Finalize();
     MPI_Finalize();
 }
 

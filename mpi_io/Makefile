@@ -1,14 +1,20 @@
 CC=mpicc
 STENCIL_COMMON_SRC=../common/stencil/printarr_par.c
 STENCIL_CFLAGS= -g -I../common/stencil
-BINS=stencil_carttopo_checkpoint_stdout stencil_carttopo_checkpoint_mpiio
+BINS=stencil_carttopo_chkpt_coll stencil_carttopo_chkpt_icoll stencil_carttopo_chkpt_indep stencil_carttopo_chkpt_serial
 
 all: $(BINS)
 
-stencil_carttopo_checkpoint_stdout: stencil_carttopo_checkpoint.c checkpoint_stdout.c $(STENCIL_COMMON_SRC)
+stencil_carttopo_chkpt_coll: stencil_carttopo_chkpt_coll.c $(STENCIL_COMMON_SRC)
 	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
 
-stencil_carttopo_checkpoint_mpiio: stencil_carttopo_checkpoint.c checkpoint_mpiio.c $(STENCIL_COMMON_SRC)
+stencil_carttopo_chkpt_icoll: stencil_carttopo_chkpt_icoll.c $(STENCIL_COMMON_SRC)
+	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
+
+stencil_carttopo_chkpt_indep: stencil_carttopo_chkpt_indep.c $(STENCIL_COMMON_SRC)
+	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
+
+stencil_carttopo_chkpt_serial: stencil_carttopo_chkpt_serial.c $(STENCIL_COMMON_SRC)
 	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
 
 clean:
