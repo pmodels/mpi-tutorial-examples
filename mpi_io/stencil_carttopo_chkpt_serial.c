@@ -20,6 +20,14 @@
 
 #define MAX_FILENAME_LENGTH (128)
 
+/* row-major order */
+#define ind(i,j) ((j)*(bx+2)+(i))
+
+int ind_f(int i, int j, int bx)
+{
+    return ind(i, j);
+}
+
 void setup(int rank, int proc, int argc, char **argv,
            int *n_ptr, int *energy_ptr, int *niters_ptr, int *px_ptr, int *py_ptr,
            char **opt_prefix, int *opt_restart_iter, int *final_flag);
@@ -373,7 +381,7 @@ int main(int argc, char **argv)
         /* optional - print image */
         if (iter == niters - 1)
             printarr_par(iter, anew, n, px, py, coords[0], coords[1],
-                         bx, by, offx, offy, MPI_COMM_WORLD);
+                         bx, by, offx, offy, ind_f, MPI_COMM_WORLD);
     }
 
     t2 = MPI_Wtime();
