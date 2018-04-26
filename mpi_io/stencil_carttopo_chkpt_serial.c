@@ -11,6 +11,10 @@
  * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
  * In every iteration, each process calls nonblocking operations with derived data types to exchange
  * grid points in a halo region with neighbors. Neighbors are calculated with cartesian topology.
+ *
+ * Add support for checkpoint/restart using legacy POSIX I/O implementation:
+ * - every rank sends its data to rank 0 which writes it to the file
+ * - on restart rank 0 reads data from file and distributes it to other ranks
  */
 
 #include <fcntl.h>

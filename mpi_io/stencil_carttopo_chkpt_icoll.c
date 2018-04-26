@@ -11,6 +11,12 @@
  * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
  * In every iteration, each process calls nonblocking operations with derived data types to exchange
  * grid points in a halo region with neighbors. Neighbors are calculated with cartesian topology.
+ *
+ * Add support for checkpoint/restart using non-blocking Collective I/O implementation:
+ * - every rank writes its data to the file collectively and non-blocking
+ *  - rank 0 writes additional header information
+ * - on restart every rank reads its data from the file collectively and non-blocking
+ * - moreover, since file writes are non blocking we overlap them with compute
  */
 
 #include <string.h>
