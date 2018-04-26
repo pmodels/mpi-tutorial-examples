@@ -6,12 +6,14 @@
  */
 
 /*
- * 2D stencil code with a checkpoint.
+ * 2D stencil code using cartesian topology and nonblocking send/receive.
  *
  * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
- * After updating grid points, each process saves the whole grid data using MPI IO operations.
+ * In every iteration, each process calls nonblocking operations with derived data types to exchange
+ * grid points in a halo region with neighbors. Neighbors are calculated with cartesian topology.
  */
 
+#include <string.h>
 #include "stencil_par.h"
 
 #define MAX_FILENAME_LENGTH (128)
@@ -24,6 +26,14 @@ int ind_f(int i, int j, int bx)
     return ind(i, j);
 }
 
+typedef struct MyFileHandle {
+    MPI_File mpi_fh;            /* MPI file handle */
+    MPI_Request req;            /* MPI Request */
+    MPI_Datatype memtype;       /* memory layout */
+    MPI_Datatype filtype;       /* file layout */
+    double *buf;                /* copy of application buffer */
+} MyFileHandle;
+
 void setup(int rank, int proc, int argc, char **argv,
            int *n_ptr, int *energy_ptr, int *niters_ptr, int *px_ptr, int *py_ptr,
            char **opt_prefix, int *opt_restart_iter, int *final_flag);
@@ -32,6 +42,14 @@ void init_sources(int bx, int by, int offx, int offy, int n,
                   const int nsources, int sources[][2], int *locnsources_ptr, int locsources[][2]);
 
 void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr);
+
+int write_checkpoint_icoll(char *prefix, int procs, int n, int *coords, int bx, int by, int iter,
+                           double *buf, MyFileHandle * fh);
+
+int read_checkpoint_icoll(char *prefix, int procs, int n, int *coords, int bx, int by, int iter,
+                          double *buf, MyFileHandle * fh);
+
+int icoll_wait_and_close(MyFileHandle * fh);
 
 int main(int argc, char **argv)
 {
@@ -57,19 +75,10 @@ int main(int argc, char **argv)
 
     int final_flag;
 
-    /* Checkpoint/Restart support variables */
-    int err;
-    int amode;                  /* file access mode */
-    int opt_restart_iter;       /* restart iteration */
-    int header[2];              /* file header metadata */
-    char *opt_prefix = NULL;
-    char *old_name, *new_name;  /*aold and anew name prefix */
-    char filename[MAX_FILENAME_LENGTH] = { 0 }; /* checkpoint file name */
-    MPI_File fh[2];             /* MPI file handle */
-    MPI_Datatype memtype;       /* memory layout */
-    MPI_Datatype filetype;      /* file layout */
-    MPI_Offset myfileoffset;
-    MPI_Request oldreq, newreq;
+    int opt_restart_iter;
+    char *opt_prefix, *old_name, *new_name;
+
+    MyFileHandle fh[2];
 
     /* initialize MPI envrionment */
     MPI_Init(&argc, &argv);
@@ -85,7 +94,7 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-    /* initialize checkpoint prefix names */
+    /* initialize prefix names for checkpoint files */
     if (opt_prefix) {
         old_name = (char *) malloc(strlen(opt_prefix) + strlen("_old"));
         new_name = (char *) malloc(strlen(opt_prefix) + strlen("_new"));
@@ -95,9 +104,10 @@ int main(int argc, char **argv)
 
     /* Create a communicator with a topology */
     MPI_Comm cart_comm;
-    int dims[2] = { 0, 0 };
+    int dims[2], coords[2];
     int periods[2] = { 0, 0 };
-    int coords[2];
+    dims[0] = px;
+    dims[1] = py;
 
     MPI_Dims_create(size, 2, dims);
     MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &cart_comm);
@@ -134,88 +144,21 @@ int main(int argc, char **argv)
 
     iter = 0;
 
-    /* create memory data layout for later I/O */
-    err = MPI_Type_vector(by, bx, bx + 2, MPI_DOUBLE, &memtype);
-    MPI_Type_commit(&memtype);
-
-    /* create file data layout for later I/O */
-    err = MPI_Type_vector(by, bx, n, MPI_DOUBLE, &filetype);
-    MPI_Type_commit(&filetype);
-
-    /* compute my offset inside file, keeping into account the header (+ 2 * sizeof(int)) */
-    myfileoffset = ((coords[1] * by) * n + coords[0] * bx) * sizeof(double) + 2 * sizeof(int);
-
-    /* Check if restart is needed */
+    /* check whether restart is needed */
     if (opt_restart_iter > 0) {
-        snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", old_name, opt_restart_iter);
+        /* recover buffers */
+        read_checkpoint_icoll(old_name, size, n, coords, bx, by, opt_restart_iter, aold, &fh[0]);
+        read_checkpoint_icoll(new_name, size, n, coords, bx, by, opt_restart_iter, anew, &fh[1]);
 
-        /* open aold checkpoint file */
-        amode = MPI_MODE_RDONLY | MPI_MODE_UNIQUE_OPEN;
-        err = MPI_File_open(MPI_COMM_WORLD, filename, amode, MPI_INFO_NULL, &fh[0]);
-        if (err != MPI_SUCCESS) {
-            fprintf(stderr, "Error opening checkpoint file %s.\n", filename);
-            MPI_Abort(MPI_COMM_WORLD, err);
-        }
+        /* wait for I/O to complete and then close file */
+        icoll_wait_and_close(&fh[0]);
+        icoll_wait_and_close(&fh[1]);
 
-        /* read header */
-        err = MPI_File_read_at_all(fh[0], 0, header, 2, MPI_INT, MPI_STATUS_IGNORE);
-
-        /* have all processes check that nothing went wrong */
-        int gErr;
-        MPI_Allreduce(&err, &gErr, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-        if (gErr || header[0] != n) {
-            if (rank == 0) {
-                fprintf(stderr, "Restart failed.\n");
-            }
-            MPI_Abort(MPI_COMM_WORLD, err);
-        }
-
-        /* set file view */
-        MPI_File_set_view(fh[0], myfileoffset, MPI_DOUBLE, filetype, "native", MPI_INFO_NULL);
-
-        /* read data */
-        err = MPI_File_iread_all(fh[0], aold + (bx + 2 + 1), 1, memtype, &oldreq);
-
-        snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", new_name, opt_restart_iter);
-
-        /* open anew checkpoint file */
-        err = MPI_File_open(MPI_COMM_WORLD, filename, amode, MPI_INFO_NULL, &fh[1]);
-        if (err != MPI_SUCCESS) {
-            fprintf(stderr, "Error opening checkpoint file %s.\n", filename);
-            MPI_Abort(MPI_COMM_WORLD, err);
-        }
-
-        /* read header */
-        err = MPI_File_read_at_all(fh[1], 0, header, 2, MPI_INT, MPI_STATUS_IGNORE);
-
-        /* have all processes check that nothing went wrong */
-        MPI_Allreduce(&err, &gErr, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-        if (gErr || header[0] != n) {
-            if (rank == 0) {
-                fprintf(stderr, "Restart failed.\n");
-            }
-            MPI_Abort(MPI_COMM_WORLD, err);
-        }
-
-        /* set file view */
-        MPI_File_set_view(fh[1], myfileoffset, MPI_DOUBLE, filetype, "native", MPI_INFO_NULL);
-
-        /* read data */
-        err = MPI_File_iread_all(fh[1], anew + (bx + 2 + 1), 1, memtype, &newreq);
-
-        /* wait for I/O to complete */
-        MPI_Wait(&oldreq, MPI_STATUS_IGNORE);
-        MPI_Wait(&newreq, MPI_STATUS_IGNORE);
-
-        /* close file */
-        err = MPI_File_close(&fh[0]);
-        err = MPI_File_close(&fh[1]);
-
+        /* set restart iteration */
         iter = opt_restart_iter + 1;
     }
 
     for (; iter < niters; ++iter) {
-
         /* refresh heat sources */
         for (i = 0; i < locnsources; ++i) {
             aold[ind(locsources[i][0], locsources[i][1])] += energy;    /* heat source */
@@ -243,53 +186,16 @@ int main(int argc, char **argv)
         anew = aold;
         aold = tmp;
 
-/* ==== checkpoint both aold and anew ==== */
-        snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", old_name, iter);
-
-        /* set access mode for checkpoint file to write only */
-        amode = MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_UNIQUE_OPEN;
-
-        /* open aold checkpoint file */
-        err = MPI_File_open(MPI_COMM_WORLD, filename, amode, MPI_INFO_NULL, &fh[0]);
-
-        /* rank 0 writes the header metadata (n, iter) */
-        if (rank == 0) {
-            header[0] = n;
-            header[1] = iter;
-            err = MPI_File_write_at(fh[0], 0, header, 2, MPI_INT, MPI_STATUS_IGNORE);
+        if ((opt_restart_iter == 0 && iter > 0) ||
+            (opt_restart_iter > 0 && iter > opt_restart_iter + 1)) {
+            /* wait for I/O to complete and then close file */
+            icoll_wait_and_close(&fh[0]);
+            icoll_wait_and_close(&fh[1]);
         }
 
-        /* finally, set file view for checkpoint file
-         * think of this as the layout of the receive process in a send/recv op */
-        MPI_File_set_view(fh[0], myfileoffset, MPI_DOUBLE, filetype, "native", MPI_INFO_NULL);
-
-        /* write aold buffer to file */
-        err = MPI_File_iwrite_all(fh[0], aold + (bx + 2 + 1), 1, memtype, &oldreq);
-
-        /* update file name */
-        snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", new_name, iter);
-
-        /* open anew checkpoint file */
-        err = MPI_File_open(MPI_COMM_WORLD, filename, amode, MPI_INFO_NULL, &fh[1]);
-
-        /* rank 0 writes the header metadata (n, iter) */
-        if (rank == 0) {
-            err = MPI_File_write_at(fh[1], 0, header, 2, MPI_INT, MPI_STATUS_IGNORE);
-        }
-
-        /* set file view */
-        MPI_File_set_view(fh[1], myfileoffset, MPI_DOUBLE, filetype, "native", MPI_INFO_NULL);
-
-        /* write anew buffer to file */
-        err = MPI_File_iwrite_all(fh[1], anew + (bx + 2 + 1), 1, memtype, &newreq);
-
-        /* wait for I/O to complete */
-        MPI_Wait(&oldreq, MPI_STATUS_IGNORE);
-        MPI_Wait(&newreq, MPI_STATUS_IGNORE);
-
-        /* close the file and force data to disk */
-        err = MPI_File_close(&fh[0]);
-        err = MPI_File_close(&fh[0]);
+        /* checkpoint buffers */
+        write_checkpoint_icoll(old_name, size, n, coords, bx, by, iter, aold, &fh[0]);
+        write_checkpoint_icoll(new_name, size, n, coords, bx, by, iter, anew, &fh[1]);
 
         /* optional - print image */
         if (iter == niters - 1)
@@ -297,18 +203,19 @@ int main(int argc, char **argv)
                          bx, by, offx, offy, ind_f, MPI_COMM_WORLD);
     }
 
-    t2 = MPI_Wtime();
+    /* wait for last I/O to complete */
+    icoll_wait_and_close(&fh[0]);
+    icoll_wait_and_close(&fh[1]);
 
-    free(old_name);
-    free(new_name);
+    t2 = MPI_Wtime();
 
     /* free working arrays and communication buffers */
     free(aold);
     free(anew);
+    free(old_name);
+    free(new_name);
 
     MPI_Type_free(&east_west_type);
-    MPI_Type_free(&memtype);
-    MPI_Type_free(&filetype);
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -402,4 +309,140 @@ void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr)
     }
 
     (*heat_ptr) = heat;
+}
+
+int write_checkpoint_icoll(char *prefix, int procs, int n, int *coords, int bx, int by, int iter,
+                           double *buf, MyFileHandle * fh)
+{
+    int err, gErr;
+    int amode;
+    int rank;
+    int header[2];              /* file header metadata */
+    MPI_Offset myfileoffset;
+    char filename[MAX_FILENAME_LENGTH] = { 0 }; /* checkpoint file name */
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    /* allocate buffer space */
+    fh->buf = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));
+
+    /* copy data in temp buffer */
+    memcpy(fh->buf, buf, (bx + 2) * (by + 2) * sizeof(double));
+
+    /* create memory data layout for later I/O */
+    err = MPI_Type_vector(by, bx, bx + 2, MPI_DOUBLE, &fh->memtype);
+    MPI_Type_commit(&fh->memtype);
+
+    /* create file data layout for later I/O */
+    err = MPI_Type_vector(by, bx, n, MPI_DOUBLE, &fh->filtype);
+    MPI_Type_commit(&fh->filtype);
+
+    /* compute my offset inside file, keeping into account the header (+ 2 * sizeof(int)) */
+    myfileoffset = ((coords[1] * by) * n + coords[0] * bx) * sizeof(double) + 2 * sizeof(int);
+
+    /* update checkpoint file name for current iteration */
+    snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", prefix, iter);
+
+    /* set access mode for checkpoint file to write only */
+    amode = MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_UNIQUE_OPEN;
+
+    /* open checkpoint file */
+    err = MPI_File_open(MPI_COMM_WORLD, filename, amode, MPI_INFO_NULL, &fh->mpi_fh);
+
+    /* rank 0 writes the header metadata (n, iter) */
+    /* NOTE: the write of the header can be merged with the data into a single non-blocking
+     *       write but this complicates the construction of the datatype significantly. */
+    if (rank == 0) {
+        header[0] = n;
+        header[1] = iter;
+        err = MPI_File_write_at(fh->mpi_fh, 0, header, 2, MPI_INT, MPI_STATUS_IGNORE);
+    }
+
+    /* set file view for checkpoint file
+     * think of this as the layout of the receive process in a send/recv op */
+    MPI_File_set_view(fh->mpi_fh, myfileoffset, MPI_DOUBLE, fh->filtype, "native", MPI_INFO_NULL);
+
+    /* write buffer to file */
+    err = MPI_File_iwrite_all(fh->mpi_fh, fh->buf + (bx + 2 + 1), 1, fh->memtype, &fh->req);
+
+    return (rank == 0) ? (bx * by * sizeof(double) + 2 * sizeof(int)) : (bx * by * sizeof(double));
+}
+
+int read_checkpoint_icoll(char *prefix, int procs, int n, int *coords, int bx, int by, int iter,
+                          double *buf, MyFileHandle * fh)
+{
+    int err, gErr;
+    int amode;
+    int rank;
+    int header[2];              /* file header metadata */
+    MPI_Offset myfileoffset;
+    char filename[MAX_FILENAME_LENGTH] = { 0 }; /* checkpoint file name */
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    fh->buf = NULL;
+
+    /* create memory data layout for later I/O */
+    err = MPI_Type_vector(by, bx, bx + 2, MPI_DOUBLE, &fh->memtype);
+    MPI_Type_commit(&fh->memtype);
+
+    /* create file data layout for later I/O */
+    err = MPI_Type_vector(by, bx, n, MPI_DOUBLE, &fh->filtype);
+    MPI_Type_commit(&fh->filtype);
+
+    /* compute my offset inside file, keeping into account the header (+ 2 * sizeof(int)) */
+    myfileoffset = ((coords[1] * by) * n + coords[0] * bx) * sizeof(double) + 2 * sizeof(int);
+
+    /* update checkpoint file name for current iteration */
+    snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", prefix, iter);
+
+    /* open checkpoint file in read only mode */
+    amode = MPI_MODE_RDONLY | MPI_MODE_UNIQUE_OPEN;
+    err = MPI_File_open(MPI_COMM_WORLD, filename, amode, MPI_INFO_NULL, &fh->mpi_fh);
+    if (err != MPI_SUCCESS) {
+        fprintf(stderr, "Error opening checkpoint file %s.\n", filename);
+        MPI_Abort(MPI_COMM_WORLD, err);
+    }
+
+    /* read header */
+    err = MPI_File_read_at(fh->mpi_fh, 0, header, 2, MPI_INT, MPI_STATUS_IGNORE);
+
+    /* have all processes check that nothing went wrong */
+    MPI_Allreduce(&err, &gErr, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+    if (gErr || header[0] != n) {
+        if (rank == 0) {
+            fprintf(stderr, "Restart failed.\n");
+        }
+        MPI_Abort(MPI_COMM_WORLD, err);
+    }
+
+    /* set file view */
+    MPI_File_set_view(fh->mpi_fh, myfileoffset, MPI_DOUBLE, fh->filtype, "native", MPI_INFO_NULL);
+
+    /* read data */
+    err = MPI_File_iread_all(fh->mpi_fh, buf + (bx + 2 + 1), 1, fh->memtype, &fh->req);
+
+    /* return read bytes */
+    return (bx * by * sizeof(double) + 2 * sizeof(int));
+}
+
+int icoll_wait_and_close(MyFileHandle * fh)
+{
+    /* wait for I/O to complete */
+    MPI_Wait(&fh->req, MPI_STATUS_IGNORE);
+
+    /* free datatype objects */
+    MPI_Type_free(&fh->memtype);
+    MPI_Type_free(&fh->filtype);
+
+    /* close file */
+    MPI_File_close(&fh->mpi_fh);
+
+    /* free buf */
+    if (fh->buf) {
+        free(fh->buf);
+        fh->buf = NULL;
+    }
+
+    return 0;
 }

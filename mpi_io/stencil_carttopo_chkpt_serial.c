@@ -6,10 +6,11 @@
  */
 
 /*
- * 2D stencil code with a checkpoint.
+ * 2D stencil code using cartesian topology and nonblocking send/receive.
  *
  * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
- * After updating grid points, each process saves the whole grid data using MPI IO operations.
+ * In every iteration, each process calls nonblocking operations with derived data types to exchange
+ * grid points in a halo region with neighbors. Neighbors are calculated with cartesian topology.
  */
 
 #include <fcntl.h>
@@ -37,6 +38,12 @@ void init_sources(int bx, int by, int offx, int offy, int n,
 
 void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr);
 
+int write_checkpoint_serial(char *prefix, int procs, int n, int *coords, int bx, int by, int iter,
+                            double *buf);
+
+int read_checkpoint_serial(char *prefix, int procs, int n, int *coords, int bx, int by, int iter,
+                           double *buf);
+
 int main(int argc, char **argv)
 {
     int rank, size;
@@ -61,22 +68,8 @@ int main(int argc, char **argv)
 
     int final_flag;
 
-    /* Checkpoint/Restart support variables */
-    int opt_restart_iter;       /* restart iteration */
-    int header[2];              /* file header metadata */
-    int row;
-    int fd;                     /* file descriptor */
-    off_t stride;               /* stride inside file */
-    off_t offset;               /* offset inside file */
-    double *buf;                /* rank 0 recv buffer */
-    char *opt_prefix = NULL;
-    char *old_name, *new_name;  /*aold and anew name prefix */
-    char filename[MAX_FILENAME_LENGTH] = { 0 }; /* checkpoint file name */
-    MPI_Datatype memtype;
-    struct coord_array {
-        int xcoord;
-        int ycoord;
-    } *coord_array;
+    int opt_restart_iter;
+    char *opt_prefix, *old_name, *new_name;
 
     /* initialize MPI envrionment */
     MPI_Init(&argc, &argv);
@@ -92,7 +85,7 @@ int main(int argc, char **argv)
         exit(0);
     }
 
-    /* initialize checkpoint prefix names */
+    /* initialize prefix names for checkpoint files */
     if (opt_prefix) {
         old_name = (char *) malloc(strlen(opt_prefix) + strlen("_old"));
         new_name = (char *) malloc(strlen(opt_prefix) + strlen("_new"));
@@ -102,9 +95,10 @@ int main(int argc, char **argv)
 
     /* Create a communicator with a topology */
     MPI_Comm cart_comm;
-    int dims[2] = { 0, 0 };
+    int dims[2], coords[2];
     int periods[2] = { 0, 0 };
-    int coords[2];
+    dims[0] = px;
+    dims[1] = py;
 
     MPI_Dims_create(size, 2, dims);
     MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &cart_comm);
@@ -119,14 +113,6 @@ int main(int argc, char **argv)
     by = n / py;        /* block size in y */
     offx = coords[0] * bx;      /* offset in x */
     offy = coords[1] * by;      /* offset in y */
-
-    /* send all coords to rank0 */
-    if (rank == 0) {
-        coord_array = (struct coord_array *) malloc(sizeof(struct coord_array) * size);
-        MPI_Gather(coords, 2, MPI_INT, coord_array, 2, MPI_INT, 0, MPI_COMM_WORLD);
-    } else {
-        MPI_Gather(coords, 2, MPI_INT, coord_array, 2, MPI_INT, 0, MPI_COMM_WORLD);
-    }
 
     /* printf("%i (%i,%i) - w: %i, e: %i, n: %i, s: %i\n", rank, ry,rx,west,east,north,south); */
 
@@ -149,112 +135,13 @@ int main(int argc, char **argv)
 
     iter = 0;
 
+    /* check whether restart is needed */
     if (opt_restart_iter > 0) {
-        if (rank == 0) {
-            buf = (double *) malloc(sizeof(double) * bx * by);
+        /* recover buffers */
+        read_checkpoint_serial(old_name, size, n, coords, bx, by, opt_restart_iter, aold);
+        read_checkpoint_serial(new_name, size, n, coords, bx, by, opt_restart_iter, anew);
 
-            snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", old_name, opt_restart_iter);
-
-            /* open aold checkpoint file */
-            fd = open(filename, O_RDONLY, S_IRWXU);
-            if (fd < 0) {
-                fprintf(stderr, "Error opening checkpoint file %s: %s.\n", filename,
-                        strerror(errno));
-                MPI_Abort(MPI_COMM_WORLD, MPI_ERR_OTHER);
-            }
-
-            /* read header metadata */
-            header[0] = header[1] = 0;
-            pread(fd, header, 2 * sizeof(int), 0);
-            if (header[1] != opt_restart_iter) {
-                fprintf(stderr, "Error restarting iter %d from %s.\n", header[1], filename);
-                MPI_Abort(MPI_COMM_WORLD, MPI_ERR_OTHER);
-            }
-
-            /* initialize offset and stride */
-            offset = 2 * sizeof(int);
-            stride = n * sizeof(double);
-
-            /* rank 0 reads first (no comm needed) */
-            for (row = 1; row <= by; row++) {
-                pread(fd, aold + (bx + 2) * row + 1, bx * sizeof(double), offset);
-                offset += stride;
-            }
-
-            /* read data on behalf of other ranks and send it to them */
-            for (i = 1; i < size; i++) {
-                offset =
-                    (coord_array[i].ycoord * by * n + coord_array[i].xcoord * bx) * sizeof(double) +
-                    2 * sizeof(int);
-                for (row = 0; row < by; row++) {
-                    pread(fd, buf + (row * bx), bx * sizeof(double), offset);
-                    offset += stride;
-                }
-                MPI_Send(buf, bx * by, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
-            }
-
-            /* close checkpoint file */
-            close(fd);
-
-            snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", new_name, opt_restart_iter);
-
-            /* open anew checkpoint file */
-            fd = open(filename, O_RDONLY, S_IRWXU);
-            if (fd < 0) {
-                fprintf(stderr, "Error opening checkpoint file %s: %s.\n", filename,
-                        strerror(errno));
-                MPI_Abort(MPI_COMM_WORLD, MPI_ERR_OTHER);
-            }
-
-            /* read header metadata */
-            header[0] = header[1] = 0;
-            pread(fd, header, 2 * sizeof(int), 0);
-            if (header[1] != opt_restart_iter) {
-                fprintf(stderr, "Error restarting iter %d from %s.\n", header[1], filename);
-                MPI_Abort(MPI_COMM_WORLD, MPI_ERR_OTHER);
-            }
-
-            /* initialize offset and stride */
-            offset = 2 * sizeof(int);
-
-            /* rank 0 reads first (no comm needed) */
-            for (row = 1; row <= by; row++) {
-                pread(fd, anew + (bx + 2) * row + 1, bx * sizeof(double), offset);
-                offset += stride;
-            }
-
-            /* read data on behalf of other ranks and send it to them */
-            for (i = 1; i < size; i++) {
-                offset =
-                    (coord_array[i].ycoord * by * n + coord_array[i].xcoord * bx) * sizeof(double) +
-                    2 * sizeof(int);
-                for (row = 0; row < by; row++) {
-                    pread(fd, buf + (row * bx), bx * sizeof(double), offset);
-                    offset += stride;
-                }
-                MPI_Send(buf, bx * by, MPI_DOUBLE, i, 1, MPI_COMM_WORLD);
-            }
-
-            /* close checkpoint file */
-            close(fd);
-
-            /* free I/O buf */
-            free(buf);
-        } else {
-            /* create memory layout */
-            MPI_Type_vector(by, bx, bx + 2, MPI_DOUBLE, &memtype);
-            MPI_Type_commit(&memtype);
-
-            /* recv aold data from rank 0 */
-            MPI_Recv(aold + (bx + 2 + 1), 1, memtype, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-            /* recv anew data from rank 0 */
-            MPI_Recv(anew + (bx + 2 + 1), 1, memtype, 0, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-
-            /* free memory layout object */
-            MPI_Type_free(&memtype);
-        }
-
+        /* set restart iteration */
         iter = opt_restart_iter + 1;
     }
 
@@ -286,97 +173,9 @@ int main(int argc, char **argv)
         anew = aold;
         aold = tmp;
 
-        /* receive data from each process and write it to file
-         * NOTE: this is not the most efficient way of writing to a file
-         *       but simplifies the code and serves as example of legacy
-         *       I/O strategy using POSIX. A better implementation would
-         *       write data to the file sequentially instead of strided.*/
-        if (rank == 0) {
-            buf = (double *) malloc(sizeof(double) * bx * by);
-
-            snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", old_name, iter);
-
-            /* open aold checkpoint file */
-            fd = open(filename, O_CREAT | O_WRONLY, S_IRWXU);
-
-            /* write header metadata */
-            header[0] = n;
-            header[1] = iter;
-            pwrite(fd, header, 2 * sizeof(int), 0);
-
-            /* initialize offset and stride */
-            offset = 2 * sizeof(int);
-            stride = n * sizeof(double);
-
-            /* rank 0 writes first (no comm needed) */
-            for (row = 1; row <= by; row++) {
-                pwrite(fd, aold + (bx + 2) * row + 1, bx * sizeof(double), offset);
-                offset += stride;
-            }
-
-            /* write data received from other ranks */
-            for (i = 1; i < size; i++) {
-                MPI_Recv(buf, bx * by, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                offset =
-                    (coord_array[i].ycoord * by * n + coord_array[i].xcoord * bx) * sizeof(double) +
-                    2 * sizeof(int);
-                for (row = 0; row < by; row++) {
-                    pwrite(fd, buf + (row * bx), bx * sizeof(double), offset);
-                    offset += stride;
-                }
-            }
-
-            /* close checkpoint file */
-            close(fd);
-
-            snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", new_name, iter);
-
-            /* open anew checkpoint file */
-            fd = open(filename, O_CREAT | O_WRONLY, S_IRWXU);
-
-            /* write header metadata */
-            pwrite(fd, header, 2 * sizeof(int), 0);
-
-            /* initialize offset */
-            offset = 2 * sizeof(int);
-
-            /* rank 0 writes first (no comm needed) */
-            for (row = 1; row <= by; row++) {
-                pwrite(fd, anew + (bx + 2) * row + 1, bx * sizeof(double), offset);
-                offset += stride;
-            }
-
-            /* write data received from other ranks */
-            for (i = 1; i < size; i++) {
-                MPI_Recv(buf, bx * by, MPI_DOUBLE, i, 1, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                offset =
-                    (coord_array[i].ycoord * by * n + coord_array[i].xcoord * bx) * sizeof(double) +
-                    2 * sizeof(int);
-                for (row = 0; row < by; row++) {
-                    pwrite(fd, buf + (row * bx), bx * sizeof(double), offset);
-                    offset += stride;
-                }
-            }
-
-            /* close checkpoint file */
-            close(fd);
-
-            /* free I/O buf */
-            free(buf);
-        } else {
-            /* create memory layout */
-            MPI_Type_vector(by, bx, bx + 2, MPI_DOUBLE, &memtype);
-            MPI_Type_commit(&memtype);
-
-            /* send aold data to rank 0 */
-            MPI_Send(aold + (bx + 2 + 1), 1, memtype, 0, 0, MPI_COMM_WORLD);
-
-            /* send anew data to rank 0 */
-            MPI_Send(anew + (bx + 2 + 1), 1, memtype, 0, 1, MPI_COMM_WORLD);
-
-            /* free memory layout object */
-            MPI_Type_free(&memtype);
-        }
+        /* checkpoint buffers */
+        write_checkpoint_serial(old_name, size, n, coords, bx, by, iter, aold);
+        write_checkpoint_serial(new_name, size, n, coords, bx, by, iter, anew);
 
         /* optional - print image */
         if (iter == niters - 1)
@@ -386,15 +185,11 @@ int main(int argc, char **argv)
 
     t2 = MPI_Wtime();
 
-    free(old_name);
-    free(new_name);
-
     /* free working arrays and communication buffers */
     free(aold);
     free(anew);
-
-    if (rank == 0)
-        free(coord_array);
+    free(old_name);
+    free(new_name);
 
     MPI_Type_free(&east_west_type);
 
@@ -490,4 +285,189 @@ void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr)
     }
 
     (*heat_ptr) = heat;
+}
+
+int write_checkpoint_serial(char *prefix, int procs, int n, int *coords, int bx, int by, int iter,
+                            double *buf)
+{
+    int i;
+    int rank;
+    int header[2];              /* file header metadata */
+    int row;
+    int fd;                     /* file descriptor */
+    off_t stride;               /* stride inside file */
+    off_t offset;               /* offset inside file */
+    double *iobuf;              /* rank 0 recv buffer */
+    MPI_Datatype memtype;
+    struct coord_array {
+        int xcoord;
+        int ycoord;
+    } *coord_array;
+    char filename[MAX_FILENAME_LENGTH] = { 0 }; /* checkpoint file name */
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    /* rank 0 receives data from each process and writes it to file
+     * NOTE: this is not the most efficient way of writing to a file
+     *       but simplifies the code and serves as example of legacy
+     *       I/O strategy using POSIX. A better implementation would
+     *       write data to the file sequentially instead of strided.*/
+    if (rank == 0) {
+        /* recv domain partitioning info from other ranks */
+        coord_array = (struct coord_array *) malloc(sizeof(struct coord_array) * procs);
+        MPI_Gather(coords, 2, MPI_INT, coord_array, 2, MPI_INT, 0, MPI_COMM_WORLD);
+
+        /* allocate space for I/O buffer */
+        iobuf = (double *) malloc(sizeof(double) * bx * by);
+
+        /* update checkpoint file name for current iteration */
+        snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", prefix, iter);
+
+        /* open checkpoint file in write only mode */
+        fd = open(filename, O_CREAT | O_WRONLY, S_IRWXU);
+
+        /* write header metadata to file */
+        header[0] = n;
+        header[1] = iter;
+        pwrite(fd, header, 2 * sizeof(int), 0);
+
+        /* initialize offset and stride */
+        offset = 2 * sizeof(int);
+        stride = n * sizeof(double);
+
+        /* rank 0 writes its data first (no comm needed) */
+        for (row = 1; row <= by; row++) {
+            pwrite(fd, buf + (bx + 2) * row + 1, bx * sizeof(double), offset);
+            offset += stride;
+        }
+
+        /* then it writes data received from other ranks */
+        for (i = 1; i < procs; i++) {
+            MPI_Recv(iobuf, bx * by, MPI_DOUBLE, i, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            offset =
+                (coord_array[i].ycoord * by * n + coord_array[i].xcoord * bx) * sizeof(double) +
+                2 * sizeof(int);
+            for (row = 0; row < by; row++) {
+                pwrite(fd, iobuf + (row * bx), bx * sizeof(double), offset);
+                offset += stride;
+            }
+        }
+
+        /* close checkpoint file */
+        close(fd);
+
+        /* free I/O buf */
+        free(iobuf);
+
+        free(coord_array);
+    } else {
+        /* send domain partitioning info to rank 0 */
+        MPI_Gather(coords, 2, MPI_INT, coord_array, 2, MPI_INT, 0, MPI_COMM_WORLD);
+
+        /* create memory layout */
+        MPI_Type_vector(by, bx, bx + 2, MPI_DOUBLE, &memtype);
+        MPI_Type_commit(&memtype);
+
+        /* send data to rank 0 */
+        MPI_Send(buf + (bx + 2 + 1), 1, memtype, 0, 0, MPI_COMM_WORLD);
+
+        /* free memory layout object */
+        MPI_Type_free(&memtype);
+    }
+
+    /* return written bytes */
+    return (bx * by * sizeof(double));
+}
+
+int read_checkpoint_serial(char *prefix, int procs, int n, int *coords, int bx, int by, int iter,
+                           double *buf)
+{
+    int i;
+    int rank;
+    int header[2];              /* file header metadata */
+    int row;
+    int fd;                     /* file descriptor */
+    off_t stride;               /* stride inside file */
+    off_t offset;               /* offset inside file */
+    double *iobuf;              /* rank 0 I/O buffer */
+    MPI_Datatype memtype;
+    struct coord_array {
+        int xcoord;
+        int ycoord;
+    } *coord_array;
+    char filename[MAX_FILENAME_LENGTH] = { 0 }; /* checkpoint file name */
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    if (rank == 0) {
+        /* recv domain partitioning info from other ranks */
+        coord_array = (struct coord_array *) malloc(sizeof(struct coord_array) * procs);
+        MPI_Gather(coords, 2, MPI_INT, coord_array, 2, MPI_INT, 0, MPI_COMM_WORLD);
+
+         /* allocate space for I/O buffer */
+        iobuf = (double *) malloc(sizeof(double) * bx * by);
+
+        /* update checkpoint file name for current iteration */
+        snprintf(filename, MAX_FILENAME_LENGTH, "%s-%d.chkpt", prefix, iter);
+
+        /* open checkpoint file in read only mode */
+        fd = open(filename, O_RDONLY, S_IRWXU);
+        if (fd < 0) {
+            fprintf(stderr, "Error opening checkpoint file %s: %s.\n", filename, strerror(errno));
+            MPI_Abort(MPI_COMM_WORLD, MPI_ERR_OTHER);
+        }
+
+        /* read header metadata from file */
+        pread(fd, header, 2 * sizeof(int), 0);
+        if (header[1] != iter) {
+            fprintf(stderr, "Error restarting iter %d from %s.\n", header[1], filename);
+            MPI_Abort(MPI_COMM_WORLD, MPI_ERR_OTHER);
+        }
+
+        /* initialize offset and stride */
+        offset = 2 * sizeof(int);
+        stride = n * sizeof(double);
+
+        /* rank 0 reads its data first (no comm needed) */
+        for (row = 1; row <= by; row++) {
+            pread(fd, buf + (bx + 2) * row + 1, bx * sizeof(double), offset);
+            offset += stride;
+        }
+
+        /* then it reads data on behalf of other ranks and send it to them */
+        for (i = 1; i < procs; i++) {
+            offset =
+                (coord_array[i].ycoord * by * n + coord_array[i].xcoord * bx) * sizeof(double) +
+                2 * sizeof(int);
+            for (row = 0; row < by; row++) {
+                pread(fd, iobuf + (row * bx), bx * sizeof(double), offset);
+                offset += stride;
+            }
+            MPI_Send(iobuf, bx * by, MPI_DOUBLE, i, 0, MPI_COMM_WORLD);
+        }
+
+        /* close checkpoint file */
+        close(fd);
+
+        /* free I/O buf */
+        free(iobuf);
+
+        free(coord_array);
+    } else {
+        /* send domain partitioning info to rank 0 */
+        MPI_Gather(coords, 2, MPI_INT, coord_array, 2, MPI_INT, 0, MPI_COMM_WORLD);
+
+        /* create memory layout */
+        MPI_Type_vector(by, bx, bx + 2, MPI_DOUBLE, &memtype);
+        MPI_Type_commit(&memtype);
+
+        /* recv data from rank 0 */
+        MPI_Recv(buf + (bx + 2 + 1), 1, memtype, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        /* free memory layout object */
+        MPI_Type_free(&memtype);
+    }
+
+    /* return read bytes */
+    return (bx * by * sizeof(double));
 }
