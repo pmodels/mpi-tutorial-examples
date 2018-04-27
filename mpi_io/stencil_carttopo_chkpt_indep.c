@@ -193,6 +193,7 @@ int main(int argc, char **argv)
     free(new_name);
 
     MPI_Type_free(&east_west_type);
+    MPI_Comm_free(&cart_comm);
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -200,6 +201,7 @@ int main(int argc, char **argv)
         printf("[%i] last heat: %f time: %f\n", rank, rheat, t2 - t1);
 
     MPI_Finalize();
+    return 0;
 }
 
 void setup(int rank, int proc, int argc, char **argv,

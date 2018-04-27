@@ -196,6 +196,7 @@ int main(int argc, char **argv)
     free(new_name);
 
     MPI_Type_free(&east_west_type);
+    MPI_Comm_free(&cart_comm);
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -203,6 +204,7 @@ int main(int argc, char **argv)
         printf("[%i] last heat: %f time: %f\n", rank, rheat, t2 - t1);
 
     MPI_Finalize();
+    return 0;
 }
 
 void setup(int rank, int proc, int argc, char **argv,
@@ -380,7 +382,7 @@ int write_checkpoint_serial(char *prefix, int procs, int n, int *coords, int bx,
     }
 
     /* return written bytes */
-    return (bx * by * sizeof(double));
+    return (rank == 0) ? (bx * by * sizeof(double) + 2 * sizeof(int)) : (bx * by * sizeof(double));
 }
 
 int read_checkpoint_serial(char *prefix, int procs, int n, int *coords, int bx, int by, int iter,
@@ -408,7 +410,7 @@ int read_checkpoint_serial(char *prefix, int procs, int n, int *coords, int bx, 
         coord_array = (struct coord_array *) malloc(sizeof(struct coord_array) * procs);
         MPI_Gather(coords, 2, MPI_INT, coord_array, 2, MPI_INT, 0, MPI_COMM_WORLD);
 
-         /* allocate space for I/O buffer */
+        /* allocate space for I/O buffer */
         iobuf = (double *) malloc(sizeof(double) * bx * by);
 
         /* update checkpoint file name for current iteration */
