@@ -5,7 +5,7 @@ STENCIL_CFLAGS=$(CFLAGS) -I../common/stencil
 CFLAGS= -g
 CFLAGS= -g -mpilog
 LDFLAGS= -lm -lpthread
-BINS=stencil_mpi_hotspot
+BINS=stencil_hotspot
 
 all: $(BINS)
 

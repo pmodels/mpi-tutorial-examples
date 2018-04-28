@@ -3,7 +3,7 @@ CFLAGS= -g -Wall
 STENCIL_COMMON_SRC=../common/stencil/printarr_par.c
 STENCIL_CFLAGS=$(CFLAGS) -I../common/stencil
 CFLAGS= -g
-BINS=stencil_mpi_hotspot
+BINS=stencil_hotspot
 
 all: $(BINS)
 
