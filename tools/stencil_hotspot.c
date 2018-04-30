@@ -129,7 +129,7 @@ int main(int argc, char **argv)
                &sbufnorth, &sbufsouth, &sbufeast, &sbufwest,
                &rbufnorth, &rbufsouth, &rbufeast, &rbufwest);
 
-    t1 = MPI_Wtime(); /* take time */
+    t1 = MPI_Wtime();   /* take time */
 
     hotspot(rank, 0);
 
