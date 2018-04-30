@@ -142,7 +142,7 @@ int main(int argc, char **argv)
                   &reqs[6]);
         MPI_Irecv(&aold[ind(0, 1)] /* east */ , 1, east_west_type, west, 9, MPI_COMM_WORLD,
                   &reqs[7]);
-        MPI_Waitall(8, reqs, MPI_STATUS_IGNORE);
+        MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
 
 #pragma acc update device(aold[0:(bx+2)*(by+2)])
 

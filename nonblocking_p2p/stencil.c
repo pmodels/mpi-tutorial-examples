@@ -148,7 +148,7 @@ int main(int argc, char **argv)
         MPI_Irecv(rbufeast, by, MPI_DOUBLE, east, 9, MPI_COMM_WORLD, &reqs[6]);
         MPI_Irecv(rbufwest, by, MPI_DOUBLE, west, 9, MPI_COMM_WORLD, &reqs[7]);
 
-        MPI_Waitall(8, reqs, MPI_STATUS_IGNORE);
+        MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
 
         /* unpack data */
         unpack_data(bx, by, aold, rbufnorth, rbufsouth, rbufeast, rbufwest);
