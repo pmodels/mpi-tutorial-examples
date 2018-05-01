@@ -82,7 +82,7 @@ int main(int argc, char **argv)
     int final_flag;
 
     int opt_restart_iter;
-    char *opt_prefix, *old_name, *new_name;
+    char *opt_prefix;
 
     MyFileHandle fh[2];
 
@@ -98,14 +98,6 @@ int main(int argc, char **argv)
     if (final_flag == 1) {
         MPI_Finalize();
         exit(0);
-    }
-
-    /* initialize prefix names for checkpoint files */
-    if (opt_prefix) {
-        old_name = (char *) malloc(strlen(opt_prefix) + strlen("_old"));
-        new_name = (char *) malloc(strlen(opt_prefix) + strlen("_new"));
-        sprintf(old_name, "%s_old", opt_prefix);
-        sprintf(new_name, "%s_new", opt_prefix);
     }
 
     /* Create a communicator with a topology */
@@ -151,14 +143,20 @@ int main(int argc, char **argv)
     iter = 0;
 
     /* check whether restart is needed */
-    if (opt_restart_iter > 0) {
+    if (opt_restart_iter > 0 && opt_restart_iter < niters - 1) {
         /* recover buffers */
-        read_checkpoint_icoll(old_name, size, n, coords, bx, by, opt_restart_iter, aold, &fh[0]);
-        read_checkpoint_icoll(new_name, size, n, coords, bx, by, opt_restart_iter, anew, &fh[1]);
+        read_checkpoint_icoll(opt_prefix, size, n, coords, bx, by, opt_restart_iter, aold, &fh[0]);
+        read_checkpoint_icoll(opt_prefix, size, n, coords, bx, by, opt_restart_iter - 1, anew,
+                              &fh[1]);
 
         /* wait for I/O to complete and then close file */
         icoll_wait_and_close(&fh[0]);
         icoll_wait_and_close(&fh[1]);
+
+        /* refresh heat sources */
+        for (i = 0; i < locnsources; ++i) {
+            anew[ind(locsources[i][0], locsources[i][1])] += energy;    /* heat source */
+        }
 
         /* set restart iteration */
         iter = opt_restart_iter + 1;
@@ -187,21 +185,20 @@ int main(int argc, char **argv)
         /* update grid points */
         update_grid(bx, by, aold, anew, &heat);
 
+        if (((opt_restart_iter == 0 || opt_restart_iter >= niters - 1) && iter > 0) ||
+            (opt_restart_iter > 0 && opt_restart_iter < niters - 1 &&
+             iter > opt_restart_iter + 1)) {
+            /* wait for I/O to complete and then close file */
+            icoll_wait_and_close(&fh[0]);
+        }
+
+        /* checkpoint buffers */
+        write_checkpoint_icoll(opt_prefix, size, n, coords, bx, by, iter, anew, &fh[0]);
+
         /* swap working arrays */
         tmp = anew;
         anew = aold;
         aold = tmp;
-
-        if ((opt_restart_iter == 0 && iter > 0) ||
-            (opt_restart_iter > 0 && iter > opt_restart_iter + 1)) {
-            /* wait for I/O to complete and then close file */
-            icoll_wait_and_close(&fh[0]);
-            icoll_wait_and_close(&fh[1]);
-        }
-
-        /* checkpoint buffers */
-        write_checkpoint_icoll(old_name, size, n, coords, bx, by, iter, aold, &fh[0]);
-        write_checkpoint_icoll(new_name, size, n, coords, bx, by, iter, anew, &fh[1]);
 
         /* optional - print image */
         if (iter == niters - 1)
@@ -211,15 +208,12 @@ int main(int argc, char **argv)
 
     /* wait for last I/O to complete */
     icoll_wait_and_close(&fh[0]);
-    icoll_wait_and_close(&fh[1]);
 
     t2 = MPI_Wtime();
 
     /* free working arrays and communication buffers */
     free(aold);
     free(anew);
-    free(old_name);
-    free(new_name);
 
     MPI_Type_free(&east_west_type);
     MPI_Comm_free(&cart_comm);

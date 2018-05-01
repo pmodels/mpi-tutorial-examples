@@ -70,7 +70,7 @@ int main(int argc, char **argv)
     int final_flag;
 
     int opt_restart_iter;
-    char *opt_prefix, *old_name, *new_name;
+    char *opt_prefix;
 
     /* initialize MPI envrionment */
     MPI_Init(&argc, &argv);
@@ -84,14 +84,6 @@ int main(int argc, char **argv)
     if (final_flag == 1) {
         MPI_Finalize();
         exit(0);
-    }
-
-    /* initialize prefix names for checkpoint files */
-    if (opt_prefix) {
-        old_name = (char *) malloc(strlen(opt_prefix) + strlen("_old"));
-        new_name = (char *) malloc(strlen(opt_prefix) + strlen("_new"));
-        sprintf(old_name, "%s_old", opt_prefix);
-        sprintf(new_name, "%s_new", opt_prefix);
     }
 
     /* Create a communicator with a topology */
@@ -137,10 +129,15 @@ int main(int argc, char **argv)
     iter = 0;
 
     /* check whether restart is needed */
-    if (opt_restart_iter > 0) {
+    if (opt_restart_iter > 0 && opt_restart_iter < niters - 1) {
         /* recover buffers */
-        read_checkpoint_coll(old_name, size, n, coords, bx, by, opt_restart_iter, aold);
-        read_checkpoint_coll(new_name, size, n, coords, bx, by, opt_restart_iter, anew);
+        read_checkpoint_coll(opt_prefix, size, n, coords, bx, by, opt_restart_iter, aold);
+        read_checkpoint_coll(opt_prefix, size, n, coords, bx, by, opt_restart_iter - 1, anew);
+
+        /* refresh heat sources */
+        for (i = 0; i < locnsources; ++i) {
+            anew[ind(locsources[i][0], locsources[i][1])] += energy;        /* heat source */
+        }
 
         /* set restart iteration */
         iter = opt_restart_iter + 1;
@@ -169,14 +166,13 @@ int main(int argc, char **argv)
         /* update grid points */
         update_grid(bx, by, aold, anew, &heat);
 
+        /* checkpoint buffers */
+        write_checkpoint_coll(opt_prefix, size, n, coords, bx, by, iter, anew);
+
         /* swap working arrays */
         tmp = anew;
         anew = aold;
         aold = tmp;
-
-        /* checkpoint buffers */
-        write_checkpoint_coll(old_name, size, n, coords, bx, by, iter, aold);
-        write_checkpoint_coll(new_name, size, n, coords, bx, by, iter, anew);
 
         /* optional - print image */
         if (iter == niters - 1)
@@ -189,8 +185,6 @@ int main(int argc, char **argv)
     /* free working arrays and communication buffers */
     free(aold);
     free(anew);
-    free(old_name);
-    free(new_name);
 
     MPI_Type_free(&east_west_type);
     MPI_Comm_free(&cart_comm);
