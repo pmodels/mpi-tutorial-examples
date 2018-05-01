@@ -70,7 +70,7 @@ int main(int argc, char **argv)
     int final_flag;
 
     int opt_restart_iter;
-    char *opt_prefix, *old_name, *new_name;
+    char *opt_prefix;
 
     /* initialize MPI envrionment */
     MPI_Init(&argc, &argv);
@@ -84,14 +84,6 @@ int main(int argc, char **argv)
     if (final_flag == 1) {
         MPI_Finalize();
         exit(0);
-    }
-
-    /* initialize prefix names for checkpoint files */
-    if (opt_prefix) {
-        old_name = (char *) malloc(strlen(opt_prefix) + strlen("_old"));
-        new_name = (char *) malloc(strlen(opt_prefix) + strlen("_new"));
-        sprintf(old_name, "%s_old", opt_prefix);
-        sprintf(new_name, "%s_new", opt_prefix);
     }
 
     /* Create a communicator with a topology */
@@ -139,8 +131,8 @@ int main(int argc, char **argv)
     /* check whether restart is needed */
     if (opt_restart_iter > 0 && opt_restart_iter < niters - 1) {
         /* recover buffers */
-        read_checkpoint_indep(new_name, size, n, coords, bx, by, opt_restart_iter, aold);
-        read_checkpoint_indep(new_name, size, n, coords, bx, by, opt_restart_iter - 1, anew);
+        read_checkpoint_indep(opt_prefix, size, n, coords, bx, by, opt_restart_iter, aold);
+        read_checkpoint_indep(opt_prefix, size, n, coords, bx, by, opt_restart_iter - 1, anew);
 
         /* refresh heat sources */
         for (i = 0; i < locnsources; ++i) {
@@ -175,7 +167,7 @@ int main(int argc, char **argv)
         update_grid(bx, by, aold, anew, &heat);
 
         /* checkpoint buffers */
-        write_checkpoint_indep(new_name, size, n, coords, bx, by, iter, anew);
+        write_checkpoint_indep(opt_prefix, size, n, coords, bx, by, iter, anew);
 
         /* swap working arrays */
         tmp = anew;
