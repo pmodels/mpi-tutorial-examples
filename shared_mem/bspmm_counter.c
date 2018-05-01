@@ -97,6 +97,17 @@ int main(int argc, char **argv)
                                 &win_counter);
     }
 
+    /* check whether the windows are unified memory model */
+    int *mem_model = NULL, *mem_model_counter = NULL, flag = 0;
+    MPI_Win_get_attr(win, MPI_WIN_MODEL, &mem_model, &flag);
+    MPI_Win_get_attr(win, MPI_WIN_MODEL, &mem_model_counter, &flag);
+    if (*mem_model != MPI_WIN_UNIFIED || *mem_model_counter != MPI_WIN_UNIFIED) {
+        fprintf(stderr, "MPI supports accessing shared memory windows only in "
+                "UNIFIED memory model.\n");
+        fflush(stderr);
+        MPI_Abort(MPI_COMM_WORLD, 1);   /* abort if memory model is unsupported */
+    }
+
     /* acquire rank-0's pointer to all the three matrices */
     MPI_Aint win_sz;
     int disp_unit;

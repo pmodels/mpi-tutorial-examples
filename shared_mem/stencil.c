@@ -121,6 +121,16 @@ int main(int argc, char **argv)
     MPI_Win_allocate_shared(2 * grid_size * sizeof(double), sizeof(double), MPI_INFO_NULL, shm_comm,
                             &win_mem, &win);
 
+    /* check whether the windows are unified memory model */
+    int *mem_model = NULL, flag = 0;
+    MPI_Win_get_attr(win, MPI_WIN_MODEL, &mem_model, &flag);
+    if (*mem_model != MPI_WIN_UNIFIED) {
+        fprintf(stderr, "MPI supports accessing shared memory windows only in "
+                "UNIFIED memory model.\n");
+        fflush(stderr);
+        MPI_Abort(MPI_COMM_WORLD, 4);   /* abort if memory model is unsupported */
+    }
+
     MPI_Win_lock(MPI_LOCK_EXCLUSIVE, rank, 0, win);
     memset(win_mem, 0, 2 * grid_size * sizeof(double));
     MPI_Win_unlock(rank, win);
