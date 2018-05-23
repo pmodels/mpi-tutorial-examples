@@ -203,9 +203,9 @@ void setup(int rank, int proc, int argc, char **argv,
 
     if (px * py != proc)
         MPI_Abort(MPI_COMM_WORLD, 1);   /* abort if px or py are wrong */
-    if (n % py != 0)
-        MPI_Abort(MPI_COMM_WORLD, 2);   /* abort px needs to divide n */
     if (n % px != 0)
+        MPI_Abort(MPI_COMM_WORLD, 2);   /* abort px needs to divide n */
+    if (n % py != 0)
         MPI_Abort(MPI_COMM_WORLD, 3);   /* abort py needs to divide n */
 
     (*n_ptr) = n;
