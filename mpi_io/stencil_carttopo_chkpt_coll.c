@@ -134,7 +134,7 @@ int main(int argc, char **argv)
 
         /* refresh heat sources */
         for (i = 0; i < locnsources; ++i) {
-            anew[ind(locsources[i][0], locsources[i][1])] += energy;        /* heat source */
+            anew[ind(locsources[i][0], locsources[i][1])] += energy;    /* heat source */
         }
 
         /* set restart iteration */
