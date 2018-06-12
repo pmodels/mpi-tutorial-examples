@@ -1,3 +1,8 @@
+# -*- Mode: Makefile; -*-
+#
+# See COPYRIGHT in top-level directory.
+#
+
 CC=mpicc
 CFLAGS= -g -Wall
 BSPMM_COMMON_SRC=../common/bspmm/bspmm_common.c

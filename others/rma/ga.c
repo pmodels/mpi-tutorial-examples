@@ -1,8 +1,6 @@
+/* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /*
- * Copyright (c) 2014 Xin Zhao. All rights reserved.
- *
- * Author(s): Xin Zhao <xinzhao3@illinois.edu>
- *
+ * See COPYRIGHT in top-level directory.
  */
 
 #include <mpi.h>

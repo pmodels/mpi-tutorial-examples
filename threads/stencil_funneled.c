@@ -1,8 +1,6 @@
+/* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /*
- * Copyright (c) 2012 Torsten Hoefler. All rights reserved.
- *
- * Author(s): Torsten Hoefler <htor@illinois.edu>
- *
+ * See COPYRIGHT in top-level directory.
  */
 
 /*

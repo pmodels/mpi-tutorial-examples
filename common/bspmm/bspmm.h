@@ -1,5 +1,10 @@
-#ifndef BSPMM_H_
-#define BSPMM_H_
+/* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
+/*
+ * See COPYRIGHT in top-level directory.
+ */
+
+#ifndef BSPMM_H_INCLUDED
+#define BSPMM_H_INCLUDED
 
 #include <mpi.h>
 #include <stdio.h>
@@ -18,4 +23,4 @@ int setup(int rank, int nprocs, int argc, char **argv, int *mat_dim_ptr);
 void init_mats(int mat_dim, double *mat_a, double *mat_b, double *mat_c);
 void check_mats(double *mat_a, double *mat_b, double *mat_c, int mat_dim);
 
-#endif /* BSPMM_H_ */
+#endif /* BSPMM_H_INCLUDED */

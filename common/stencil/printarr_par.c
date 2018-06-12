@@ -1,8 +1,6 @@
+/* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /*
- * printarr.cpp
- *
- *  Created on: Jan 3, 2012
- *      Author: htor
+ * See COPYRIGHT in top-level directory.
  */
 
 #include "stencil_par.h"

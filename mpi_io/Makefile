@@ -1,3 +1,8 @@
+# -*- Mode: Makefile; -*-
+#
+# See COPYRIGHT in top-level directory.
+#
+
 CC=mpicc
 STENCIL_COMMON_SRC=../common/stencil/printarr_par.c
 STENCIL_CFLAGS= -g -I../common/stencil
