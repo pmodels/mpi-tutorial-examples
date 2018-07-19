@@ -236,8 +236,8 @@ void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr)
     int i, j;
     double heat = 0.0;
 
+#pragma omp parallel for schedule(static) reduction(+:heat) private(i,j)
     for (i = 1; i < bx + 1; ++i) {
-#pragma omp parallel for reduction(+:heat)
         for (j = 1; j < by + 1; ++j) {
             anew[ind(i, j)] =
                 anew[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
