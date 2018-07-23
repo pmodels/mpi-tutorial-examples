@@ -27,8 +27,6 @@ void setup(int rank, int proc, int argc, char **argv,
 void init_sources(int bx, int by, int offx, int offy, int n,
                   const int nsources, int sources[][2], int *locnsources_ptr, int locsources[][2]);
 
-void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr);
-
 int main(int argc, char **argv)
 {
     int rank, size, provided;
@@ -46,7 +44,7 @@ int main(int argc, char **argv)
 
     double t1, t2;
 
-    int iter, i;
+    int iter, i, j;
 
     double *aold, *anew, *tmp;
 
@@ -113,47 +111,63 @@ int main(int argc, char **argv)
     MPI_Type_commit(&east_west_type);
 
     t1 = MPI_Wtime();   /* take time */
+    #pragma omp parallel private(iter,i,j)
+    {
+        for (iter = 0; iter < niters; ++iter) {
+            #pragma omp master
+            {
+                /* refresh heat sources */
+                for (i = 0; i < locnsources; ++i) {
+                    aold[ind(locsources[i][0], locsources[i][1])] += energy;    /* heat source */
+                }
+                /* exchange data with neighbors */
+                MPI_Request reqs[8];
+                MPI_Isend(&aold[ind(1, 1)] /* north */ , bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD,
+                          &reqs[0]);
+                MPI_Isend(&aold[ind(1, by)] /* south */ , bx, MPI_DOUBLE, south, 9, MPI_COMM_WORLD,
+                          &reqs[1]);
+                MPI_Isend(&aold[ind(bx, 1)] /* east */ , 1, east_west_type, east, 9, MPI_COMM_WORLD,
+                          &reqs[2]);
+                MPI_Isend(&aold[ind(1, 1)] /* west */ , 1, east_west_type, west, 9, MPI_COMM_WORLD,
+                          &reqs[3]);
+                MPI_Irecv(&aold[ind(1, 0)] /* north */ , bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD,
+                          &reqs[4]);
+                MPI_Irecv(&aold[ind(1, by + 1)] /* south */ , bx, MPI_DOUBLE, south, 9, MPI_COMM_WORLD,
+                          &reqs[5]);
+                MPI_Irecv(&aold[ind(bx + 1, 1)] /* east */ , 1, east_west_type, east, 9, MPI_COMM_WORLD,
+                          &reqs[6]);
+                MPI_Irecv(&aold[ind(0, 1)] /* west */ , 1, east_west_type, west, 9, MPI_COMM_WORLD,
+                          &reqs[7]);
+                MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
 
-    for (iter = 0; iter < niters; ++iter) {
+                heat = 0.0;
+            }
+            #pragma omp barrier
 
-        /* refresh heat sources */
-        for (i = 0; i < locnsources; ++i) {
-            aold[ind(locsources[i][0], locsources[i][1])] += energy;    /* heat source */
+            /* update grid points */
+
+            #pragma omp for schedule(static) reduction(+:heat)
+            for (i = 1; i < bx + 1; ++i) {
+                for (j = 1; j < by + 1; ++j) {
+                    anew[ind(i, j)] =
+                        anew[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
+                                                 aold[ind(i, j - 1)] + aold[ind(i, j + 1)]) / 4.0 / 2.0;
+                    heat += anew[ind(i, j)];
+                }
+            }
+
+            #pragma omp master
+            {
+                /* swap working arrays */
+                tmp = anew;
+                anew = aold;
+                aold = tmp;
+            }
+            /* optional - print image */
+            if (iter == niters - 1)
+                printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, ind_f, MPI_COMM_WORLD);
         }
-
-        /* exchange data with neighbors */
-        MPI_Request reqs[8];
-        MPI_Isend(&aold[ind(1, 1)] /* north */ , bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD,
-                  &reqs[0]);
-        MPI_Isend(&aold[ind(1, by)] /* south */ , bx, MPI_DOUBLE, south, 9, MPI_COMM_WORLD,
-                  &reqs[1]);
-        MPI_Isend(&aold[ind(bx, 1)] /* east */ , 1, east_west_type, east, 9, MPI_COMM_WORLD,
-                  &reqs[2]);
-        MPI_Isend(&aold[ind(1, 1)] /* west */ , 1, east_west_type, west, 9, MPI_COMM_WORLD,
-                  &reqs[3]);
-        MPI_Irecv(&aold[ind(1, 0)] /* north */ , bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD,
-                  &reqs[4]);
-        MPI_Irecv(&aold[ind(1, by + 1)] /* south */ , bx, MPI_DOUBLE, south, 9, MPI_COMM_WORLD,
-                  &reqs[5]);
-        MPI_Irecv(&aold[ind(bx + 1, 1)] /* east */ , 1, east_west_type, east, 9, MPI_COMM_WORLD,
-                  &reqs[6]);
-        MPI_Irecv(&aold[ind(0, 1)] /* west */ , 1, east_west_type, west, 9, MPI_COMM_WORLD,
-                  &reqs[7]);
-        MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
-
-        /* update grid points */
-        update_grid(bx, by, aold, anew, &heat);
-
-        /* swap working arrays */
-        tmp = anew;
-        anew = aold;
-        aold = tmp;
-
-        /* optional - print image */
-        if (iter == niters - 1)
-            printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, ind_f, MPI_COMM_WORLD);
     }
-
     t2 = MPI_Wtime();
 
     /* free working arrays and communication buffers */
@@ -228,23 +242,4 @@ void init_sources(int bx, int by, int offx, int offy, int n,
     }
 
     (*locnsources_ptr) = locnsources;
-}
-
-
-void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr)
-{
-    int i, j;
-    double heat = 0.0;
-
-#pragma omp parallel for schedule(static) reduction(+:heat) private(i,j)
-    for (i = 1; i < bx + 1; ++i) {
-        for (j = 1; j < by + 1; ++j) {
-            anew[ind(i, j)] =
-                anew[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
-                                         aold[ind(i, j - 1)] + aold[ind(i, j + 1)]) / 4.0 / 2.0;
-            heat += anew[ind(i, j)];
-        }
-    }
-
-    (*heat_ptr) = heat;
 }

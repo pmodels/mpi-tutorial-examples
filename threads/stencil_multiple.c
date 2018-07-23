@@ -121,22 +121,25 @@ int main(int argc, char **argv)
 
     t1 = MPI_Wtime();   /* take time */
 
-    for (iter = 0; iter < niters; ++iter) {
+    #pragma omp parallel private(iter, i,j)
+    {
+        int thread_id = omp_get_thread_num();
+        int xstart = THX_START;
+        int xend = THX_END;
+        int xrange = xend - xstart;
 
-        /* refresh heat sources */
-        for (i = 0; i < locnsources; ++i) {
-            aold[ind(locsources[i][0], locsources[i][1])] += energy;    /* heat source */
-        }
+        for (iter = 0; iter < niters; ++iter) {
+            #pragma omp master
+            {
+               /* refresh heat sources */
+                for (i = 0; i < locnsources; ++i) {
+                    aold[ind(locsources[i][0], locsources[i][1])] += energy;    /* heat source */
+                }
 
-        /* reset the total heat */
-        heat = 0.0;
-
-#pragma omp parallel private(i,j) reduction(+:heat)
-        {
-            int thread_id = omp_get_thread_num();
-            int xstart = THX_START;
-            int xend = THX_END;
-            int xrange = xend - xstart;
+                /* reset the total heat */
+                heat = 0.0;
+            }
+            #pragma omp barrier
 
             /* create request arrays */
             MPI_Request north_reqs[2];
@@ -179,26 +182,34 @@ int main(int argc, char **argv)
             }
 
             /* update grid */
+            double my_heat = 0.0;
             for (i = xstart; i < xend; ++i) {
                 for (j = 1; j < by + 1; ++j) {
                     anew[ind(i, j)] =
                         anew[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
                                                  aold[ind(i, j - 1)] +
                                                  aold[ind(i, j + 1)]) / 4.0 / 2.0;
-                    heat += anew[ind(i, j)];
+                    my_heat += anew[ind(i, j)];
                 }
             }
+            #pragma omp critical
+            {
+                heat += my_heat;
+            }
+            #pragma omp barrier
 
-        }       /* end parallel region */
-
-        /* swap working arrays */
-        tmp = anew;
-        anew = aold;
-        aold = tmp;
+            #pragma omp master
+            {
+                /* swap working arrays */
+                tmp = anew;
+                anew = aold;
+                aold = tmp;
+            }
 
         /* optional - print image */
         if (iter == niters - 1)
             printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, ind_f, MPI_COMM_WORLD);
+        }
     }
 
     t2 = MPI_Wtime();
