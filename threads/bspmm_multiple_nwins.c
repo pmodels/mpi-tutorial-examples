@@ -116,7 +116,7 @@ int main(int argc, char **argv)
     }
 
     /* allocate local buffer for each thread */
-    local_a = (double *) malloc(3 * BLK_DIM * BLK_DIM * sizeof(double));
+    local_a = (double *) malloc(num_threads * 3 * BLK_DIM * BLK_DIM * sizeof(double));
     local_b = local_a + BLK_DIM * BLK_DIM * num_threads;
     local_c = local_b + BLK_DIM * BLK_DIM * num_threads;
 
@@ -199,7 +199,18 @@ int main(int argc, char **argv)
     if (!rank) {
         MPI_Win_sync(win_c);    /* MEM_MODE: synchronize private and public window copies */
         check_mats(mat_a, mat_b, mat_c, mat_dim);
-        printf("[%i] time: %f\n", rank, t2 - t1);
+        int nthreads = omp_get_max_threads();
+#if !defined(OUTPUT_TOFILE)
+        printf("m,nthreads,time\n");
+        printf("%d,%d,%f\n", mat_dim, nthreads, t2 - t1);
+#else
+        char filename[50];
+        sprintf(filename, "bspmm_multiple_nwins_%d_%d",nprocs,mat_dim);
+        FILE *out = fopen(filename, "w");
+        fprintf(out, "m,nthreads,time\n");
+        fprintf(out, "%d,%d,%f\n", mat_dim, nthreads, t2 - t1);
+        fclose(out);
+#endif
     }
 
     MPI_Win_unlock(0, win_counter);

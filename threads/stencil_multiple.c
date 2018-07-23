@@ -222,8 +222,19 @@ int main(int argc, char **argv)
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    if (!rank)
-        printf("[%i] last heat: %f time: %f\n", rank, rheat, t2 - t1);
+    if (!rank) {
+#if !defined(OUTPUT_TOFILE)
+        printf("n,nthreads,last_heat,time,flops\n");
+        printf("%d,%d,%f,%f,%f\n", n, nthreads, rheat, t2 - t1, ((double)n*n*7*niters)/(t2 - t1));
+#else
+        char filename[20];
+        sprintf(filename, "stencil_multiple_%d_%d",px*py,n);
+        FILE *out = fopen(filename, "w");
+        fprintf(out, "n,nthreads,last_heat,time,flops\n");
+        fprintf(out, "%d,%d,%f,%f,%f\n", n, nthreads, rheat, t2 - t1, ((double)n*n*7*niters)/(t2 - t1));
+        fclose(out);
+#endif
+    }
 
     MPI_Finalize();
     return 0;
