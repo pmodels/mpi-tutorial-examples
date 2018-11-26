@@ -106,6 +106,13 @@ int main(int argc, char **argv)
     nthreads = omp_get_max_threads();
     Thx = bx / nthreads;
 
+    if (Thx == 0) {
+        if (rank == 0) {
+            fprintf(stderr, "Domain size too small for number of threads\n");
+        }
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
     /* duplicate as many comm_world communicators as number of threads */
     world_comms = (MPI_Comm *) malloc(sizeof(MPI_Comm) * nthreads);
     for (i = 0; i < nthreads; i++)

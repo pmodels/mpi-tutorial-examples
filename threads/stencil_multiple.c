@@ -104,6 +104,13 @@ int main(int argc, char **argv)
     nthreads = omp_get_max_threads();
     Thx = bx / nthreads;
 
+    if (Thx == 0) {
+        if (rank == 0) {
+            fprintf(stderr, "Domain size too small for number of threads\n");
+        }
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
     /* allocate working arrays & communication buffers */
     aold = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
     anew = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
