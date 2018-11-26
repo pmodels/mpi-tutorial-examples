@@ -121,7 +121,7 @@ int main(int argc, char **argv)
 
     t1 = MPI_Wtime();   /* take time */
 
-    #pragma omp parallel private(iter, i,j)
+#pragma omp parallel private(iter, i,j)
     {
         int thread_id = omp_get_thread_num();
         int xstart = THX_START;
@@ -129,9 +129,9 @@ int main(int argc, char **argv)
         int xrange = xend - xstart;
 
         for (iter = 0; iter < niters; ++iter) {
-            #pragma omp master
+#pragma omp master
             {
-               /* refresh heat sources */
+                /* refresh heat sources */
                 for (i = 0; i < locnsources; ++i) {
                     aold[ind(locsources[i][0], locsources[i][1])] += energy;    /* heat source */
                 }
@@ -139,7 +139,7 @@ int main(int argc, char **argv)
                 /* reset the total heat */
                 heat = 0.0;
             }
-            #pragma omp barrier
+#pragma omp barrier
 
             /* create request arrays */
             MPI_Request north_reqs[2];
@@ -192,13 +192,13 @@ int main(int argc, char **argv)
                     my_heat += anew[ind(i, j)];
                 }
             }
-            #pragma omp critical
+#pragma omp critical
             {
                 heat += my_heat;
             }
-            #pragma omp barrier
+#pragma omp barrier
 
-            #pragma omp master
+#pragma omp master
             {
                 /* swap working arrays */
                 tmp = anew;
@@ -206,9 +206,10 @@ int main(int argc, char **argv)
                 aold = tmp;
             }
 
-        /* optional - print image */
-        if (iter == niters - 1)
-            printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, ind_f, MPI_COMM_WORLD);
+            /* optional - print image */
+            if (iter == niters - 1)
+                printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, ind_f,
+                             MPI_COMM_WORLD);
         }
     }
 
@@ -225,13 +226,15 @@ int main(int argc, char **argv)
     if (!rank) {
 #if !defined(OUTPUT_TOFILE)
         printf("n,nthreads,last_heat,time,flops\n");
-        printf("%d,%d,%f,%f,%f\n", n, nthreads, rheat, t2 - t1, ((double)n*n*7*niters)/(t2 - t1));
+        printf("%d,%d,%f,%f,%f\n", n, nthreads, rheat, t2 - t1,
+               ((double) n * n * 7 * niters) / (t2 - t1));
 #else
         char filename[20];
-        sprintf(filename, "stencil_multiple_%d_%d",px*py,n);
+        sprintf(filename, "stencil_multiple_%d_%d", px * py, n);
         FILE *out = fopen(filename, "w");
         fprintf(out, "n,nthreads,last_heat,time,flops\n");
-        fprintf(out, "%d,%d,%f,%f,%f\n", n, nthreads, rheat, t2 - t1, ((double)n*n*7*niters)/(t2 - t1));
+        fprintf(out, "%d,%d,%f,%f,%f\n", n, nthreads, rheat, t2 - t1,
+                ((double) n * n * 7 * niters) / (t2 - t1));
         fclose(out);
 #endif
     }

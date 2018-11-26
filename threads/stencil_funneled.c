@@ -111,10 +111,10 @@ int main(int argc, char **argv)
     MPI_Type_commit(&east_west_type);
 
     t1 = MPI_Wtime();   /* take time */
-    #pragma omp parallel private(iter,i,j)
+#pragma omp parallel private(iter,i,j)
     {
         for (iter = 0; iter < niters; ++iter) {
-            #pragma omp master
+#pragma omp master
             {
                 /* refresh heat sources */
                 for (i = 0; i < locnsources; ++i) {
@@ -132,31 +132,32 @@ int main(int argc, char **argv)
                           &reqs[3]);
                 MPI_Irecv(&aold[ind(1, 0)] /* north */ , bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD,
                           &reqs[4]);
-                MPI_Irecv(&aold[ind(1, by + 1)] /* south */ , bx, MPI_DOUBLE, south, 9, MPI_COMM_WORLD,
-                          &reqs[5]);
-                MPI_Irecv(&aold[ind(bx + 1, 1)] /* east */ , 1, east_west_type, east, 9, MPI_COMM_WORLD,
-                          &reqs[6]);
+                MPI_Irecv(&aold[ind(1, by + 1)] /* south */ , bx, MPI_DOUBLE, south, 9,
+                          MPI_COMM_WORLD, &reqs[5]);
+                MPI_Irecv(&aold[ind(bx + 1, 1)] /* east */ , 1, east_west_type, east, 9,
+                          MPI_COMM_WORLD, &reqs[6]);
                 MPI_Irecv(&aold[ind(0, 1)] /* west */ , 1, east_west_type, west, 9, MPI_COMM_WORLD,
                           &reqs[7]);
                 MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
 
                 heat = 0.0;
             }
-            #pragma omp barrier
+#pragma omp barrier
 
             /* update grid points */
 
-            #pragma omp for schedule(static) reduction(+:heat)
+#pragma omp for schedule(static) reduction(+:heat)
             for (i = 1; i < bx + 1; ++i) {
                 for (j = 1; j < by + 1; ++j) {
                     anew[ind(i, j)] =
                         anew[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
-                                                 aold[ind(i, j - 1)] + aold[ind(i, j + 1)]) / 4.0 / 2.0;
+                                                 aold[ind(i, j - 1)] +
+                                                 aold[ind(i, j + 1)]) / 4.0 / 2.0;
                     heat += anew[ind(i, j)];
                 }
             }
 
-            #pragma omp master
+#pragma omp master
             {
                 /* swap working arrays */
                 tmp = anew;
@@ -165,7 +166,8 @@ int main(int argc, char **argv)
             }
             /* optional - print image */
             if (iter == niters - 1)
-                printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, ind_f, MPI_COMM_WORLD);
+                printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, ind_f,
+                             MPI_COMM_WORLD);
         }
     }
     t2 = MPI_Wtime();
@@ -182,13 +184,15 @@ int main(int argc, char **argv)
         int nthreads = omp_get_max_threads();
 #if !defined(OUTPUT_TOFILE)
         printf("n,nthreads,last_heat,time,flops\n");
-        printf("%d,%d,%f,%f,%f\n", n, nthreads, rheat, t2 - t1, ((double)n*n*7*niters)/(t2 - t1));
+        printf("%d,%d,%f,%f,%f\n", n, nthreads, rheat, t2 - t1,
+               ((double) n * n * 7 * niters) / (t2 - t1));
 #else
         char filename[20];
-        sprintf(filename, "stencil_funneled_%d_%d",px*py,n);
+        sprintf(filename, "stencil_funneled_%d_%d", px * py, n);
         FILE *out = fopen(filename, "w");
         fprintf(out, "n,nthreads,last_heat,time,flops\n");
-        fprintf(out, "%d,%d,%f,%f,%f\n", n, nthreads, rheat, t2 - t1, ((double)n*n*7*niters)/(t2 - t1));
+        fprintf(out, "%d,%d,%f,%f,%f\n", n, nthreads, rheat, t2 - t1,
+                ((double) n * n * 7 * niters) / (t2 - t1));
         fclose(out);
 #endif
     }

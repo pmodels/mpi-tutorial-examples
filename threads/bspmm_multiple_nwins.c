@@ -205,7 +205,7 @@ int main(int argc, char **argv)
         printf("%d,%d,%f\n", mat_dim, nthreads, t2 - t1);
 #else
         char filename[50];
-        sprintf(filename, "bspmm_multiple_nwins_%d_%d",nprocs,mat_dim);
+        sprintf(filename, "bspmm_multiple_nwins_%d_%d", nprocs, mat_dim);
         FILE *out = fopen(filename, "w");
         fprintf(out, "m,nthreads,time\n");
         fprintf(out, "%d,%d,%f\n", mat_dim, nthreads, t2 - t1);
