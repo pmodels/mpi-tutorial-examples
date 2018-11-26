@@ -122,9 +122,6 @@ int main(int argc, char **argv)
     aold = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
     anew = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
 
-    memset(aold, 0, (bx + 2) * (by + 2) * sizeof(double));
-    memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));
-
     /* initialize three heat sources */
     init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
 
@@ -141,6 +138,24 @@ int main(int argc, char **argv)
         int xstart = THX_START;
         int xend = THX_END;
         int xrange = xend - xstart;
+
+        /* Initialize aold and anew using "first touch", *including boundaries* */
+        /* Note that MPI_Alloc_mem does not initialize the memory
+         * (this is a good thing in this case) */
+        /* temporarily update xstart and xend for the initialization
+         * and reset them once we are done */
+        if (xstart == 1)
+            xstart = 0;
+        if (xend == bx + 1)
+            xend = bx + 2;
+        for (j = 0; j <= by + 1; ++j) {
+            for (i = xstart; i < xend; ++i) {
+                aold[ind(i, j)] = 0.0;
+                anew[ind(i, j)] = 0.0;
+            }
+        }
+        xstart = THX_START;
+        xend = THX_END;
 
         for (iter = 0; iter < niters; ++iter) {
 #pragma omp master
