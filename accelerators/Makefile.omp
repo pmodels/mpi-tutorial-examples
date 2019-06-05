@@ -4,20 +4,15 @@
 #
 
 CC=mpicc
-CFLAGS= -acc -g
+CFLAGS= -fopenmp -g
 STENCIL_COMMON_SRC=../common/stencil/printarr_par.c
 STENCIL_CFLAGS=$(CFLAGS) -I../common/stencil
-BSPMM_COMMON_SRC=../common/bspmm/bspmm_common.c
-BSPMM_CFLAGS=$(CFLAGS) -I../common/bspmm
-BINS=stencil bspmm_counter
+BINS=stencil
 
 all: $(BINS)
 
-stencil: stencil_acc.c $(STENCIL_COMMON_SRC)
+stencil: stencil_omp.c $(STENCIL_COMMON_SRC)
 	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
-
-bspmm_counter: bspmm_counter_acc.c $(BSPMM_COMMON_SRC)
-	$(CC) $(BSPMM_CFLAGS) $^ -o $@
 
 clean:
 	rm -f $(BINS)

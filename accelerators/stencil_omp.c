@@ -4,11 +4,12 @@
  */
 
 /*
- * 2D stencil code using MPI and OpenACC.
+ * 2D stencil code using MPI and OpenMP (offloading).
  *
  * 2D regular grid is divided into px * py blocks of grid points (px * py = # of processes.)
  * In every iteration, each process calls nonblocking operations with derived data types to exchange
- * grid points in a halo with its neighbors. Computation is accelerated by OpenACC.
+ * grid points in a halo with its neighbors. Computation is accelerated by OpenMP offloading
+ * features.
  */
 
 #include "stencil_par.h"
@@ -114,7 +115,7 @@ int main(int argc, char **argv)
 
     t1 = MPI_Wtime();   /* take time */
 
-#pragma acc data create(aold[0:(bx+2)*(by+2)],anew[0:(bx+2)*(by+2)])
+#pragma omp target data map(to:aold[0:(bx+2)*(by+2)],anew[0:(bx+2)*(by+2)])
     for (iter = 0; iter < niters; ++iter) {
 
         /* refresh heat sources */
@@ -142,13 +143,13 @@ int main(int argc, char **argv)
                   &reqs[7]);
         MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
 
-#pragma acc update device(aold[0:(bx+2)*(by+2)])
+#pragma omp target update to(aold[0:(bx+2)*(by+2)])
 
         /* offload computation to the device in update_grid() */
         /* update grid points */
         update_grid(bx, by, aold, anew, &heat);
 
-#pragma acc update host(anew[0:(bx+2)*(by+2)])
+#pragma omp target update from(anew[0:(bx+2)*(by+2)])
 
         /* swap working arrays */
         tmp = anew;
@@ -242,7 +243,8 @@ void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr)
     int i, j;
     double heat = 0.0;
 
-#pragma acc parallel loop present(aold, anew) reduction(+:heat)
+#pragma omp target teams distribute parallel for simd collapse(2) firstprivate(bx, by)\
+                                                      reduction(+:heat)
     for (i = 1; i < bx + 1; ++i) {
         for (j = 1; j < by + 1; ++j) {
             anew[ind(i, j)] =
