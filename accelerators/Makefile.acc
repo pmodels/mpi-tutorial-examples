@@ -13,10 +13,10 @@ BINS=stencil bspmm_counter
 
 all: $(BINS)
 
-stencil: stencil.c $(STENCIL_COMMON_SRC)
+stencil: stencil_acc.c $(STENCIL_COMMON_SRC)
 	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
 
-bspmm_counter: bspmm_counter.c $(BSPMM_COMMON_SRC)
+bspmm_counter: bspmm_counter_acc.c $(BSPMM_COMMON_SRC)
 	$(CC) $(BSPMM_CFLAGS) $^ -o $@
 
 clean:
