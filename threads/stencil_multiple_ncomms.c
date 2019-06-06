@@ -157,6 +157,13 @@ int main(int argc, char **argv)
         xstart = THX_START;
         xend = THX_END;
 
+        /* If I am not the first thread, I will not participate in communications involving my west neighbor */
+        /* If I am not the last thread, I will not participate in communications involving my east neighbor */
+        if (xstart != 1)
+            west = MPI_PROC_NULL;
+        if (xend != bx + 1)
+            east = MPI_PROC_NULL;
+
         for (iter = 0; iter < niters; ++iter) {
 #pragma omp master
             {
@@ -170,47 +177,34 @@ int main(int argc, char **argv)
             }
 #pragma omp barrier
 
-            /* create request arrays */
-            MPI_Request north_reqs[2];
-            MPI_Request south_reqs[2];
-            MPI_Request east_reqs[2];
-            MPI_Request west_reqs[2];
+            /* create request array */
+            MPI_Request reqs[8];
 
             /* exchange data with neighbors */
 
             /* each thread uses a dedicated communicator and tag
              * for north-south exchange */
-            if (south >= 0) {
-                MPI_Isend(&aold[ind(xstart, by)] /* south */ , xrange, MPI_DOUBLE,
-                          south, thread_id, world_comms[thread_id], &south_reqs[0]);
-                MPI_Irecv(&aold[ind(xstart, by + 1)] /* south */ , xrange, MPI_DOUBLE,
-                          south, thread_id, world_comms[thread_id], &south_reqs[1]);
-                MPI_Waitall(2, south_reqs, MPI_STATUSES_IGNORE);
-            }
-            if (north >= 0) {
-                MPI_Isend(&aold[ind(xstart, 1)] /* north */ , xrange, MPI_DOUBLE,
-                          north, thread_id, world_comms[thread_id], &north_reqs[0]);
-                MPI_Irecv(&aold[ind(xstart, 0)] /* north */ , xrange, MPI_DOUBLE,
-                          north, thread_id, world_comms[thread_id], &north_reqs[1]);
-                MPI_Waitall(2, north_reqs, MPI_STATUSES_IGNORE);
-            }
+            MPI_Isend(&aold[ind(xstart, by)] /* south */ , xrange, MPI_DOUBLE,
+                      south, thread_id, world_comms[thread_id], &reqs[0]);
+            MPI_Irecv(&aold[ind(xstart, by + 1)] /* south */ , xrange, MPI_DOUBLE,
+                      south, thread_id, world_comms[thread_id], &reqs[1]);
+            MPI_Isend(&aold[ind(xstart, 1)] /* north */ , xrange, MPI_DOUBLE,
+                      north, thread_id, world_comms[thread_id], &reqs[2]);
+            MPI_Irecv(&aold[ind(xstart, 0)] /* north */ , xrange, MPI_DOUBLE,
+                      north, thread_id, world_comms[thread_id], &reqs[3]);
             /* use (comm, tag) = (comms[nthreads-1], nthreads) for west-to-east communication and
              * (comms[0], nthreads) for east-to-west because the two sides are assigned to threads
              * that have different ids */
-            if ((west >= 0) && (xstart == 1)) {
-                MPI_Isend(&aold[ind(1, 1)] /* west */ , 1, east_west_type,
-                          west, nthreads, world_comms[nthreads - 1], &west_reqs[0]);
-                MPI_Irecv(&aold[ind(0, 1)] /* east */ , 1, east_west_type,
-                          west, nthreads, world_comms[0], &west_reqs[1]);
-                MPI_Waitall(2, west_reqs, MPI_STATUSES_IGNORE);
-            }
-            if ((east >= 0) && (xend == bx)) {
-                MPI_Isend(&aold[ind(bx, 1)] /* east */ , 1, east_west_type,
-                          east, nthreads, world_comms[0], &east_reqs[0]);
-                MPI_Irecv(&aold[ind(bx + 1, 1)] /* west */ , 1, east_west_type,
-                          east, nthreads, world_comms[nthreads - 1], &east_reqs[1]);
-                MPI_Waitall(2, east_reqs, MPI_STATUSES_IGNORE);
-            }
+            MPI_Isend(&aold[ind(1, 1)] /* west */ , 1, east_west_type,
+                      west, nthreads, world_comms[nthreads - 1], &reqs[4]);
+            MPI_Irecv(&aold[ind(0, 1)] /* east */ , 1, east_west_type,
+                      west, nthreads, world_comms[0], &reqs[5]);
+            MPI_Isend(&aold[ind(bx, 1)] /* east */ , 1, east_west_type,
+                      east, nthreads, world_comms[0], &reqs[6]);
+            MPI_Irecv(&aold[ind(bx + 1, 1)] /* west */ , 1, east_west_type,
+                      east, nthreads, world_comms[nthreads - 1], &reqs[7]);
+
+            MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
 
             /* update grid */
             double my_heat = 0.0;
