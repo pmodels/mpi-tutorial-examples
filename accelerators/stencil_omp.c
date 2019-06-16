@@ -198,12 +198,18 @@ void setup(int rank, int proc, int argc, char **argv,
     px = atoi(argv[4]); /* 1st dim processes */
     py = atoi(argv[5]); /* 2nd dim processes */
 
-    if (px * py != proc)
+    if (px * py != proc) {
+        fprintf(stderr, "px * py must equal to the number of processes.\n");
         MPI_Abort(MPI_COMM_WORLD, 1);   /* abort if px or py are wrong */
-    if (n % py != 0)
+    }
+    if (n % px != 0) {
+        fprintf(stderr, "grid size n must be divisible by px.\n");
         MPI_Abort(MPI_COMM_WORLD, 2);   /* abort px needs to divide n */
-    if (n % px != 0)
+    }
+    if (n % py != 0) {
+        fprintf(stderr, "grid size n must be divisible by py.\n");
         MPI_Abort(MPI_COMM_WORLD, 3);   /* abort py needs to divide n */
+    }
 
     (*n_ptr) = n;
     (*energy_ptr) = energy;
