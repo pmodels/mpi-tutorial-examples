@@ -70,8 +70,8 @@ int main(int argc, char **argv)
     MPI_Comm cart_comm;
     int dims[2], coords[2];
     int periods[2] = { 0, 0 };
-    dims[0] = px;
-    dims[1] = py;
+    dims[0] = 0;
+    dims[1] = 0;
 
     MPI_Dims_create(size, 2, dims);
     MPI_Cart_create(MPI_COMM_WORLD, 2, dims, periods, 0, &cart_comm);
