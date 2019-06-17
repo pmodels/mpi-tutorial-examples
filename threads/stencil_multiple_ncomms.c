@@ -204,7 +204,7 @@ int main(int argc, char **argv)
                           west, nthreads, world_comms[0], &west_reqs[1]);
                 MPI_Waitall(2, west_reqs, MPI_STATUSES_IGNORE);
             }
-            if ((east >= 0) && (xend == bx + 1)) {
+            if ((east >= 0) && (xend == bx)) {
                 MPI_Isend(&aold[ind(bx, 1)] /* east */ , 1, east_west_type,
                           east, nthreads, world_comms[0], &east_reqs[0]);
                 MPI_Irecv(&aold[ind(bx + 1, 1)] /* west */ , 1, east_west_type,
