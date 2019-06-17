@@ -24,7 +24,7 @@ int ind_f(int i, int j, int bx)
 }
 
 #define THX_START (thread_id % nthreads)==0 ? 1 : (thread_id % nthreads) * Thx + 1
-#define THX_END (thread_id % nthreads) == nthreads -1 ? bx + 1 : ((thread_id + 1) % nthreads) * Thx + 1
+#define THX_END (thread_id % nthreads) == nthreads -1 ? bx: ((thread_id + 1) % nthreads) * Thx
 
 void setup(int rank, int proc, int argc, char **argv,
            int *n_ptr, int *energy_ptr, int *niters_ptr, int *px_ptr, int *py_ptr, int *final_flag);
@@ -130,7 +130,7 @@ int main(int argc, char **argv)
         int thread_id = omp_get_thread_num();
         int xstart = THX_START;
         int xend = THX_END;
-        int xrange = xend - xstart;
+        int xrange = xend - xstart + 1;
 
         /* Initialize aold and anew using "first touch", *including boundaries* */
         /* Note that MPI_Alloc_mem does not initialize the memory
@@ -139,7 +139,7 @@ int main(int argc, char **argv)
          * and reset them once we are done */
         if (xstart == 1)
             xstart = 0;
-        if (xend == bx + 1)
+        if (xend == bx)
             xend = bx + 2;
         for (j = 0; j <= by + 1; ++j) {
             for (i = xstart; i < xend; ++i) {
