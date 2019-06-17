@@ -150,6 +150,13 @@ int main(int argc, char **argv)
         xstart = THX_START;
         xend = THX_END;
 
+        /* If I am not assigned the first column, I will not participate in communication involving the west neighbor */
+        if (xstart != 1)
+            west = MPI_PROC_NULL;
+        /* If I am not assigned the last column, I will not participate in communication involving the east neighbor */
+        if (xend != bx)
+            east = MPI_PROC_NULL;
+
         for (iter = 0; iter < niters; ++iter) {
 #pragma omp master
             {
