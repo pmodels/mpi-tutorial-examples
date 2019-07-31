@@ -163,11 +163,12 @@ int main(int argc, char **argv)
                 tmp = anew;
                 anew = aold;
                 aold = tmp;
+
+                /* optional - print image */
+                if (iter == niters - 1)
+                    printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, ind_f,
+                                 MPI_COMM_WORLD);
             }
-            /* optional - print image */
-            if (iter == niters - 1)
-                printarr_par(iter, anew, n, px, py, rx, ry, bx, by, offx, offy, ind_f,
-                             MPI_COMM_WORLD);
         }
     }
     t2 = MPI_Wtime();
