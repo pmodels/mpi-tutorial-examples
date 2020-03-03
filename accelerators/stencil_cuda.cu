@@ -99,6 +99,13 @@ int main(int argc, char **argv)
 
     int final_flag;
 
+    /* assign device to process */
+    int local_rank, dev_id, dev_count;
+    local_rank = atoi(getenv("PMI_RANK"));
+    cudaGetDeviceCount(&dev_count);
+    dev_id = local_rank % dev_count;
+    cudaSetDevice(dev_id);
+
     /* initialize MPI envrionment */
     MPI_Init(&argc, &argv);
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -140,23 +147,6 @@ int main(int argc, char **argv)
 
     /* initialize three heat sources */
     init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
-
-    /* assign processes to devices */
-    int local_rank, dev_id, dev_count;
-    CUdevice cuDevice;
-    CUcontext cuContext;
-    MPI_Comm intranode_comm;
-    MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, rank, MPI_INFO_NULL, &intranode_comm);
-    MPI_Comm_rank(intranode_comm, &local_rank);
-
-    cudaGetDeviceCount(&dev_count);
-    dev_id = local_rank % dev_count;
-    cudaSetDevice(dev_id);
-
-    cuInit(0);
-    cuDeviceGet(&cuDevice, dev_id);
-    cuDevicePrimaryCtxRetain(&cuContext, cuDevice);
-    MPI_Comm_free(&intranode_comm);
 
     /* create an asynchronous cuda stream */
     cudaStream_t s;
@@ -322,7 +312,6 @@ int main(int argc, char **argv)
     free(heat_h);
 
     cudaStreamDestroy(s);
-    cuDevicePrimaryCtxRelease(cuDevice);
 
     MPI_Finalize();
     return 0;
