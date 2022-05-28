@@ -147,9 +147,9 @@ int main(int argc, char **argv)
         if (xstart == 1)
             xstart = 0;
         if (xend == bx)
-            xend = bx + 2;
+            xend = bx + 1;
         for (j = 0; j <= by + 1; ++j) {
-            for (i = xstart; i < xend; ++i) {
+            for (i = xstart; i <= xend; ++i) {
                 aold[ind(i, j)] = 0.0;
                 anew[ind(i, j)] = 0.0;
             }
@@ -214,7 +214,7 @@ int main(int argc, char **argv)
 
             /* update grid */
             double my_heat = 0.0;
-            for (i = xstart; i < xend; ++i) {
+            for (i = xstart; i <= xend; ++i) {
                 for (j = 1; j < by + 1; ++j) {
                     anew[ind(i, j)] =
                         anew[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
