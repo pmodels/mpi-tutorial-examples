@@ -3,12 +3,13 @@
 # See COPYRIGHT in top-level directory.
 #
 
+CC=gcc
 CFLAGS= -g -Wall
 BINS=stencil
 
 all: $(BINS)
 
-stencil: stencil.c ../common/stencil/printarr.c
+stencil: stencil.c ../common/stencil/printarr.c -lm
 
 clean:
 	rm -f $(BINS)
