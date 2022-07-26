@@ -12,42 +12,31 @@
  * 2D stencil code
  */
 
-void printarr(int iter, double *array, int size, int bx, int by, int (*ind) (int, int, int));
-
 /* row-major order */
 #define ind(i,j) ((j)*(bx+2)+(i))
-
 int ind_f(int i, int j, int bx)
 {
     return ind(i, j);
 }
 
+/* utility functions */
+void printarr(int iter, double *array, int size, int bx, int by, int (*ind) (int, int, int));
 void setup(int argc, char **argv, int *n_ptr, int *energy_ptr, int *niters_ptr, int *final_flag);
-
 void init_sources(int bx, int by, int n, const int nsources, int sources[][2]);
-
 void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr);
-
 void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr);
-
 void free_bufs(double *aold, double *anew);
 
 int main(int argc, char **argv)
 {
     int n, energy, niters;
-
     int bx, by;
-
     /* three heat sources */
     const int nsources = 3;
     int sources[nsources][2];
-
     int iter, i;
-
     double *aold, *anew, *tmp;
-
     double heat;
-
     int final_flag;
 
     /* argument checking and setting */
@@ -65,7 +54,6 @@ int main(int argc, char **argv)
     /* allocate working arrays & communication buffers */
     alloc_bufs(bx, by, &aold, &anew);
 
-    /* t1 = MPI_Wtime();   /\* take time *\/ */
     struct timespec start, end;
     clock_gettime(CLOCK_REALTIME, &start);
 
