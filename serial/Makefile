@@ -10,7 +10,7 @@ BINS=stencil
 all: $(BINS)
 
 stencil: stencil.c ../common/stencil/printarr.c
-	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
+	$(CC) $(CFLAGS) $^ -o $@ -lm
 
 clean:
 	rm -f $(BINS)
