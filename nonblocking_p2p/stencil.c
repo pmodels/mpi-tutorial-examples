@@ -27,12 +27,12 @@ void setup(int rank, int proc, int argc, char **argv,
 void init_sources(int bx, int by, int offx, int offy, int n,
                   const int nsources, int sources[][2], int *locnsources_ptr, int locsources[][2]);
 
-void alloc_bufs(int bx, int by,
-                double **aold_ptr, double **anew_ptr,
-                double **sbufnorth_ptr, double **sbufsouth_ptr,
-                double **sbufeast_ptr, double **sbufwest_ptr,
-                double **rbufnorth_ptr, double **rbufsouth_ptr,
-                double **rbufeast_ptr, double **rbufwest_ptr);
+void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr);
+void alloc_comm_bufs(int bx, int by,
+                     double **sbufnorth_ptr, double **sbufsouth_ptr,
+                     double **sbufeast_ptr, double **sbufwest_ptr,
+                     double **rbufnorth_ptr, double **rbufsouth_ptr,
+                     double **rbufeast_ptr, double **rbufwest_ptr);
 
 void pack_data(int bx, int by, double *aold,
                double *sbufnorth, double *sbufsouth, double *sbfueast, double *sbufwest);
@@ -42,10 +42,9 @@ void unpack_data(int bx, int by, double *aold,
 
 void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr);
 
-void free_bufs(double *aold, double *anew,
-               double *sbufnorth, double *sbufsouth,
-               double *sbufeast, double *sbufwest,
-               double *rbufnorth, double *rbufsouth, double *rbufeast, double *rbufwest);
+void free_bufs(double *aold, double *anew);
+void free_comm_bufs(double *sbufnorth, double *sbufsouth, double *sbufeast, double *sbufwest,
+                    double *rbufnorth, double *rbufsouth, double *rbufeast, double *rbufwest);
 
 int main(int argc, char **argv)
 {
@@ -117,9 +116,9 @@ int main(int argc, char **argv)
     init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
 
     /* allocate working arrays & communication buffers */
-    alloc_bufs(bx, by, &aold, &anew,
-               &sbufnorth, &sbufsouth, &sbufeast, &sbufwest,
-               &rbufnorth, &rbufsouth, &rbufeast, &rbufwest);
+    alloc_bufs(bx, by, &aold, &anew);
+    alloc_comm_bufs(bx, by, &sbufnorth, &sbufsouth, &sbufeast, &sbufwest,
+                    &rbufnorth, &rbufsouth, &rbufeast, &rbufwest);
 
     t1 = MPI_Wtime();   /* take time */
 
@@ -167,8 +166,9 @@ int main(int argc, char **argv)
     t2 = MPI_Wtime();
 
     /* free working arrays and communication buffers */
-    free_bufs(aold, anew, sbufnorth, sbufsouth, sbufeast, sbufwest,
-              rbufnorth, rbufsouth, rbufeast, rbufwest);
+    free_comm_bufs(sbufnorth, sbufsouth, sbufeast, sbufwest,
+                   rbufnorth, rbufsouth, rbufeast, rbufwest);
+    free_bufs(aold, anew);
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -244,15 +244,9 @@ void init_sources(int bx, int by, int offx, int offy, int n,
     (*locnsources_ptr) = locnsources;
 }
 
-void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr,
-                double **sbufnorth_ptr, double **sbufsouth_ptr,
-                double **sbufeast_ptr, double **sbufwest_ptr,
-                double **rbufnorth_ptr, double **rbufsouth_ptr,
-                double **rbufeast_ptr, double **rbufwest_ptr)
+void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr)
 {
     double *aold, *anew;
-    double *sbufnorth, *sbufsouth, *sbufeast, *sbufwest;
-    double *rbufnorth, *rbufsouth, *rbufeast, *rbufwest;
 
     /* allocate two working arrays */
     anew = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
@@ -260,6 +254,18 @@ void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr,
 
     memset(aold, 0, (bx + 2) * (by + 2) * sizeof(double));
     memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));
+
+    (*aold_ptr) = aold;
+    (*anew_ptr) = anew;
+}
+
+void alloc_bufs(int bx, int by, double **sbufnorth_ptr, double **sbufsouth_ptr,
+                double **sbufeast_ptr, double **sbufwest_ptr,
+                double **rbufnorth_ptr, double **rbufsouth_ptr,
+                double **rbufeast_ptr, double **rbufwest_ptr)
+{
+    double *sbufnorth, *sbufsouth, *sbufeast, *sbufwest;
+    double *rbufnorth, *rbufsouth, *rbufeast, *rbufwest;
 
     /* allocate communication buffers */
     sbufnorth = (double *) malloc(bx * sizeof(double)); /* send buffers */
@@ -280,8 +286,6 @@ void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr,
     memset(rbufeast, 0, by * sizeof(double));
     memset(rbufwest, 0, by * sizeof(double));
 
-    (*aold_ptr) = aold;
-    (*anew_ptr) = anew;
     (*sbufnorth_ptr) = sbufnorth;
     (*sbufsouth_ptr) = sbufsouth;
     (*sbufeast_ptr) = sbufeast;
@@ -292,13 +296,15 @@ void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr,
     (*rbufwest_ptr) = rbufwest;
 }
 
-void free_bufs(double *aold, double *anew,
-               double *sbufnorth, double *sbufsouth,
-               double *sbufeast, double *sbufwest,
-               double *rbufnorth, double *rbufsouth, double *rbufeast, double *rbufwest)
+void free_bufs(double *aold, double *anew)
 {
     free(aold);
     free(anew);
+}
+
+void free_bufs(double *sbufnorth, double *sbufsouth, double *sbufeast, double *sbufwest,
+               double *rbufnorth, double *rbufsouth, double *rbufeast, double *rbufwest)
+{
     free(sbufnorth);
     free(sbufsouth);
     free(sbufeast);

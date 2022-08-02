@@ -33,6 +33,10 @@ void setup(int rank, int proc, int argc, char **argv,
 void init_sources(int bx, int by, int offx, int offy, int n,
                   const int nsources, int sources[][2], int *locnsources_ptr, int locsources[][2]);
 
+void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr);
+
+void free_bufs(double *aold, double *anew);
+
 int main(int argc, char **argv)
 {
     int rank, size, provided;
@@ -118,12 +122,11 @@ int main(int argc, char **argv)
     for (i = 0; i < nthreads; i++)
         MPI_Comm_dup(MPI_COMM_WORLD, &world_comms[i]);
 
-    /* allocate working arrays & communication buffers */
-    aold = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
-    anew = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
-
     /* initialize three heat sources */
     init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
+
+    /* allocate working arrays */
+    alloc_bufs(bx, by, &aold, &anew);
 
     /* create east-west datatype */
     MPI_Datatype east_west_type;
@@ -247,11 +250,11 @@ int main(int argc, char **argv)
 
     t2 = MPI_Wtime();
 
-    /* free working arrays and communication buffers */
-    free(aold);
-    free(anew);
-
     MPI_Type_free(&east_west_type);
+
+    /* free working arrays and communication buffers */
+    free_bufs(aold, anew);
+
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -342,4 +345,25 @@ void init_sources(int bx, int by, int offx, int offy, int n,
     }
 
     (*locnsources_ptr) = locnsources;
+}
+
+void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr)
+{
+    double *aold, *anew;
+
+    /* allocate two working arrays */
+    anew = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
+    aold = (double *) malloc((bx + 2) * (by + 2) * sizeof(double));     /* 1-wide halo zones! */
+
+    memset(aold, 0, (bx + 2) * (by + 2) * sizeof(double));
+    memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));
+
+    (*aold_ptr) = aold;
+    (*anew_ptr) = anew;
+}
+
+void free_bufs(double *aold, double *anew)
+{
+    free(aold);
+    free(anew);
 }
