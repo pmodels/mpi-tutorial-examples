@@ -8,3 +8,8 @@ serial/stencil
 
 nonblocking_p2p/stencil
 nonblocking_p2p/bspmm_pack
+
+derived_datatype/stencil
+derived_datatype/stencil_alltoallw
+derived_datatype/bspmm_subarray
+derived_datatype/bspmm_vector
