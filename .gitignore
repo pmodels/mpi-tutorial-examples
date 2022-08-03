@@ -13,3 +13,7 @@ derived_datatype/stencil
 derived_datatype/stencil_alltoallw
 derived_datatype/bspmm_subarray
 derived_datatype/bspmm_vector
+
+blocking_coll/cpi
+blocking_coll/stencil_alltoallv
+blocking_coll/sort_any_procs
