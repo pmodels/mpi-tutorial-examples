@@ -4,5 +4,7 @@
 compile_commands.json
 .cache
 
+serial/stencil
+
 nonblocking_p2p/stencil
 nonblocking_p2p/bspmm_pack
