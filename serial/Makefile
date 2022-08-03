@@ -4,12 +4,13 @@
 #
 
 CC=gcc
-CFLAGS= -g -Wall
+CFLAGS= -g -Wall -I../common
 BINS=stencil
+STENCIL_DEPS=../common/stencil/printarr.c ../common/perf_stat.c
 
 all: $(BINS)
 
-stencil: stencil.c ../common/stencil/printarr.c
+stencil: stencil.c $(STENCIL_DEPS)
 	$(CC) $(CFLAGS) $^ -o $@ -lm
 
 clean:

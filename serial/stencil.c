@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "perf_stat.h"
 
 /*
  * 2D stencil code
@@ -23,6 +24,7 @@ int ind_f(int i, int j, int bx)
 void printarr(int iter, double *array, int size, int bx, int by, int (*ind) (int, int, int));
 void setup(int argc, char **argv, int *n_ptr, int *energy_ptr, int *niters_ptr, int *final_flag);
 void init_sources(int bx, int by, int n, const int nsources, int sources[][2]);
+void refresh_heat_source(int bx, int nsources, int sources[][2], int energy, double *aold_ptr);
 void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr);
 void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr);
 void free_bufs(double *aold, double *anew);
@@ -34,7 +36,7 @@ int main(int argc, char **argv)
     /* three heat sources */
     const int nsources = 3;
     int sources[nsources][2];
-    int iter, i;
+    int iter;
     double *aold, *anew, *tmp;
     double heat;
     int final_flag;
@@ -54,14 +56,11 @@ int main(int argc, char **argv)
     /* allocate working arrays & communication buffers */
     alloc_bufs(bx, by, &aold, &anew);
 
-    struct timespec start, end;
-    clock_gettime(CLOCK_REALTIME, &start);
+    PERF_TIMER_BEGIN(TIMER_EXEC);
 
     for (iter = 0; iter < niters; ++iter) {
         /* refresh heat sources */
-        for (i = 0; i < nsources; ++i) {
-            aold[ind(sources[i][0], sources[i][1])] += energy;  /* heat source */
-        }
+        refresh_heat_source(bx, nsources, sources, energy, aold);
 
         /* update grid points */
         update_grid(bx, by, aold, anew, &heat);
@@ -76,15 +75,14 @@ int main(int argc, char **argv)
             printarr(iter, anew, n, bx, by, ind_f);
     }
 
-    clock_gettime(CLOCK_REALTIME, &end);
-    float elapsed =
-        ((float) (end.tv_sec - start.tv_sec) + 1.0e-9 * (double) (end.tv_nsec - start.tv_nsec));
+    PERF_TIMER_END(TIMER_EXEC);
 
     /* free working arrays and communication buffers */
     free_bufs(aold, anew);
 
     /* get final heat in the system */
-    printf("last heat: %f time: %f\n", heat, elapsed);
+    printf("last heat: %f\n", heat);
+    PERF_PRINT();
 
     return 0;
 }
@@ -120,6 +118,15 @@ void init_sources(int bx, int by, int n, const int nsources, int sources[][2])
     sources[2][1] = n * 8 / 9;
 }
 
+void refresh_heat_source(int bx, int nsources, int sources[][2], int energy, double *aold_ptr)
+{
+    PERF_TIMER_BEGIN(TIMER_COMP);
+    for (int i = 0; i < nsources; ++i) {
+        aold_ptr[ind(sources[i][0], sources[i][1])] += energy;  /* heat source */
+    }
+    PERF_TIMER_END(TIMER_COMP);
+}
+
 void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr)
 {
     double *aold, *anew;
@@ -146,6 +153,7 @@ void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr)
     int i, j;
     double heat = 0.0;
 
+    PERF_TIMER_BEGIN(TIMER_COMP);
     for (i = 1; i < bx + 1; ++i) {
         for (j = 1; j < by + 1; ++j) {
             anew[ind(i, j)] =
@@ -154,6 +162,7 @@ void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr)
             heat += anew[ind(i, j)];
         }
     }
+    PERF_TIMER_END(TIMER_COMP);
 
     (*heat_ptr) = heat;
 }

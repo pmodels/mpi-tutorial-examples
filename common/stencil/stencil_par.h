@@ -1,6 +1,6 @@
-/* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
+/* -*- mode: c; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /*
- * See COPYRIGHT in top-level directory.
+ * see copyright in top-level directory.
  */
 
 #ifndef STENCIL_PAR_H_INCLUDED
