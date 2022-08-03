@@ -4,6 +4,7 @@
  */
 
 #include "stencil_par.h"
+#include "perf_stat.h"
 
 struct bmpfile_magic {
     unsigned char magic[2];
@@ -46,6 +47,7 @@ void printarr_par(int iter, double *array, int size, int px, int py, int rx, int
     char fname[128];
     snprintf(fname, 128, "./output-%i.bmp", iter);
 
+    PERF_TIMER_BEGIN(TIMER_IMG);
     MPI_File_open(comm, fname, MPI_MODE_SEQUENTIAL | MPI_MODE_CREATE | MPI_MODE_WRONLY,
                   MPI_INFO_NULL, &fh);
 
@@ -133,4 +135,5 @@ void printarr_par(int iter, double *array, int size, int px, int py, int rx, int
     free(myline);
 
     MPI_File_close(&fh);
+    PERF_TIMER_BEGIN(TIMER_IMG);
 }

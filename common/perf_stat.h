@@ -10,6 +10,7 @@ typedef enum {
     TIMER_EXEC = 0,
     TIMER_COMP = 1,
     TIMER_COMM,
+    TIMER_IMG,
     N_TIMERS
 } perf_timer_labels;
 

@@ -11,7 +11,8 @@
 static char timer_name[N_TIMERS][MAX_NAME_LEN] = {
     "Execution",
     "Computation",
-    "Communication"
+    "Communication",
+    "Imaging"
 };
 
 double t_total[N_TIMERS] = { 0.0 };
