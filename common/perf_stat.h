@@ -17,8 +17,8 @@ extern double t_total[N_TIMERS];
 
 #ifdef MPI_INCLUDED
 
-extern double t_start[N_TIMERS] = { 0.0 };
-extern double t_stop[N_TIMERS] = { 0.0 };
+extern double t_start[N_TIMERS];
+extern double t_stop[N_TIMERS];
 
 #define PERF_TIMER_BEGIN(timer) \
     do { \
