@@ -15,5 +15,18 @@
 
 void printarr_par(int iter, double *array, int size, int px, int py, int rx, int ry, int bx, int by,
                   int offx, int offy, int (*ind)(int i, int j, int bx), MPI_Comm comm);
+void setup(int rank, int proc, int argc, char **argv,
+           int *n_ptr, int *energy_ptr, int *niters_ptr, int *px_ptr, int *py_ptr, int *final_flag);
+
+void init_sources(int bx, int by, int offx, int offy, int n,
+                  const int nsources, int sources[][2], int *locnsources_ptr, int locsources[][2]);
+
+void refresh_heat_source(int bx, int nsources, int sources[][2], int energy, double *aold_ptr);
+
+void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr);
+
+void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr);
+
+void free_bufs(double *aold, double *anew);
 
 #endif /* STENCIL_PAR_H_INCLUDED */

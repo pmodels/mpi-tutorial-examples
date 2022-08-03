@@ -9,6 +9,7 @@ BSPMM_COMMON_SRC=../common/bspmm/bspmm_common.c
 BSPMM_CFLAGS=$(CFLAGS) -I../common/bspmm
 BINS=sendrecv master_worker_simple
 BINS+=sort_2_procs sort_any_procs bspmm_simple bspmm_pack
+STENCIL_COMMON_SRC=../common/stencil/stencil_par.c
 
 all: $(BINS)
 
