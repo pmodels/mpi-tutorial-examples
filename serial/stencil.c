@@ -34,8 +34,8 @@ int main(int argc, char **argv)
     int n, energy, niters;
     int bx, by;
     /* three heat sources */
-    const int nsources = 3;
-    int sources[nsources][2];
+    const int nsources = NSOURCES;
+    int sources[NSOURCES][2];
     int iter;
     double *aold, *anew, *tmp;
     double heat;

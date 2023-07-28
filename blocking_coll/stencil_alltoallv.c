@@ -45,10 +45,10 @@ int main(int argc, char **argv)
     int bx, by, offx, offy;
 
     /* three heat sources */
-    const int nsources = 3;
-    int sources[nsources][2];
+    const int nsources = NSOURCES;
+    int sources[NSOURCES][2];
     int locnsources;            /* number of sources in my area */
-    int locsources[nsources][2];        /* sources local to my rank */
+    int locsources[NSOURCES][2];        /* sources local to my rank */
 
     int iter, i;
 
