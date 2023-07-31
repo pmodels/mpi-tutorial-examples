@@ -48,7 +48,6 @@ int main(int argc, char **argv)
     int bx, by, offx, offy;
 
     /* three heat sources */
-    const int nsources = NSOURCES;
     int sources[NSOURCES][2];
     int locnsources;            /* number of sources in my area */
     int locsources[NSOURCES][2];        /* sources local to my rank */
@@ -123,7 +122,7 @@ int main(int argc, char **argv)
         MPI_Comm_dup(MPI_COMM_WORLD, &world_comms[i]);
 
     /* initialize three heat sources */
-    init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
+    init_sources(bx, by, offx, offy, n, NSOURCES, sources, &locnsources, locsources);
 
     /* allocate working arrays */
     alloc_bufs(bx, by, &aold, &anew);

@@ -55,7 +55,6 @@ int main(int argc, char **argv)
     int bx, by, offx, offy;
 
     /* three heat sources */
-    const int nsources = NSOURCES;
     int sources[NSOURCES][2];
     int locnsources;            /* number of sources in my area */
     int locsources[NSOURCES][2];        /* sources local to my rank */
@@ -118,7 +117,7 @@ int main(int argc, char **argv)
     memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));
 
     /* initialize three heat sources */
-    init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
+    init_sources(bx, by, offx, offy, n, NSOURCES, sources, &locnsources, locsources);
 
     /* create east-west datatype */
     MPI_Datatype east_west_type;

@@ -63,7 +63,6 @@ int main(int argc, char **argv)
     int bx, by, offx, offy;
 
     /* three heat sources */
-    const int nsources = NSOURCES;
     int sources[NSOURCES][2];
     int locnsources;            /* number of sources in my area */
     int locsources[NSOURCES][2];        /* sources local to my rank */
@@ -120,7 +119,7 @@ int main(int argc, char **argv)
     /* printf("%i (%i,%i) - w: %i, e: %i, n: %i, s: %i\n", rank, ry,rx,west,east,north,south); */
 
     /* initialize three heat sources */
-    init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
+    init_sources(bx, by, offx, offy, n, NSOURCES, sources, &locnsources, locsources);
 
     /* allocate working arrays & communication buffers */
     alloc_bufs(bx, by, &aold, &anew,

@@ -34,7 +34,6 @@ int main(int argc, char **argv)
     int n, energy, niters;
     int bx, by;
     /* three heat sources */
-    const int nsources = NSOURCES;
     int sources[NSOURCES][2];
     int iter;
     double *aold, *anew, *tmp;
@@ -51,7 +50,7 @@ int main(int argc, char **argv)
     }
 
     /* initialize three heat sources */
-    init_sources(bx, by, n, nsources, sources);
+    init_sources(bx, by, n, NSOURCES, sources);
 
     /* allocate working arrays & communication buffers */
     alloc_bufs(bx, by, &aold, &anew);
@@ -60,7 +59,7 @@ int main(int argc, char **argv)
 
     for (iter = 0; iter < niters; ++iter) {
         /* refresh heat sources */
-        refresh_heat_source(bx, nsources, sources, energy, aold);
+        refresh_heat_source(bx, NSOURCES, sources, energy, aold);
 
         /* update grid points */
         update_grid(bx, by, aold, anew, &heat);
