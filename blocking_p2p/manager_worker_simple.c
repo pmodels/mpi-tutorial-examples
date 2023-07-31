@@ -31,7 +31,7 @@ int main(int argc, char **argv)
         data_count = rand() % 100;      /* figure out how much data to send */
         MPI_Send(data, data_count, MPI_INT, size - 1, task_id, MPI_COMM_WORLD);
     } else {
-        /* master process */
+        /* manager process */
         for (i = 0; i < size - 1; i++) {
             MPI_Recv(data, 100, MPI_INT, MPI_ANY_SOURCE, MPI_ANY_TAG, MPI_COMM_WORLD, &status);
             MPI_Get_count(&status, MPI_INT, &count);

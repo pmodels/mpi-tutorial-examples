@@ -7,7 +7,7 @@ CC=mpicc
 CFLAGS= -g -Wall
 BSPMM_COMMON_SRC=../common/bspmm/bspmm_common.c
 BSPMM_CFLAGS=$(CFLAGS) -I../common/bspmm
-BINS=sendrecv master_worker_simple
+BINS=sendrecv manager_worker_simple
 BINS+=sort_2_procs sort_any_procs bspmm_simple bspmm_pack
 STENCIL_COMMON_SRC=../common/stencil/stencil_par.c
 
@@ -16,7 +16,7 @@ all: $(BINS)
 sendrecv: sendrecv.c
 	$(CC) $(CFLAGS) $^ -o $@
 
-master_worker_simple: master_worker_simple.c
+manager_worker_simple: manager_worker_simple.c
 	$(CC) $(CFLAGS) $^ -o $@
 
 sort_2_procs: sort_2_procs.c
