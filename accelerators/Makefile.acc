@@ -4,8 +4,8 @@
 #
 
 CC=mpicc
-CFLAGS= -acc -g
-STENCIL_COMMON_SRC=../common/stencil/printarr_par.c
+CFLAGS= -acc -g -I../common
+STENCIL_COMMON_SRC=../common/stencil/printarr_par.c ../common/perf_stat.c
 STENCIL_CFLAGS=$(CFLAGS) -I../common/stencil
 BSPMM_COMMON_SRC=../common/bspmm/bspmm_common.c
 BSPMM_CFLAGS=$(CFLAGS) -I../common/bspmm

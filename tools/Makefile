@@ -4,8 +4,8 @@
 #
 
 CC=mpicc
-CFLAGS= -g -Wall
-STENCIL_COMMON_SRC=../common/stencil/printarr_par.c
+CFLAGS= -g -Wall -I../common
+STENCIL_COMMON_SRC=../common/stencil/printarr_par.c ../common/perf_stat.c
 STENCIL_CFLAGS= $(CFLAGS) -I../common/stencil
 BINS=stencil_hotspot
 
