@@ -25,7 +25,9 @@ void refresh_heat_source(int bx, int nsources, int sources[][2], int energy, dou
 
 void alloc_bufs(int bx, int by, double **aold_ptr, double **anew_ptr);
 
+#ifndef __NVCC__
 void update_grid(int bx, int by, double *aold, double *anew, double *heat_ptr);
+#endif
 
 void free_bufs(double *aold, double *anew);
 
