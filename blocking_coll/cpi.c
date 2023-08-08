@@ -38,9 +38,10 @@ int main(int argc, char *argv[])
     fprintf(stdout, "Process %d of %d is on %s\n", myid, numprocs, processor_name);
     fflush(stdout);
 
-    n = 10000;  /* default # of rectangles */
-    if (myid == 0)
+    if (myid == 0) {
+        n = 10000;  /* default # of rectangles */
         startwtime = MPI_Wtime();
+    }
 
     MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
