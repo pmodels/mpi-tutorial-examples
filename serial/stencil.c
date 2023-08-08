@@ -20,6 +20,8 @@ int ind_f(int i, int j, int bx)
     return ind(i, j);
 }
 
+#define NSOURCES (3)
+
 /* utility functions */
 void printarr(int iter, double *array, int size, int bx, int by, int (*ind) (int, int, int));
 void setup(int argc, char **argv, int *n_ptr, int *energy_ptr, int *niters_ptr, int *final_flag);
