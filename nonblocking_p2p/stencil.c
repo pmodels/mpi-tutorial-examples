@@ -116,7 +116,7 @@ int main(int argc, char **argv)
         MPI_Request reqs[8];
 
         /* refresh heat sources */
-        refresh_heat_source(bx, NSOURCES, sources, energy, aold);
+        refresh_heat_source(bx, locnsources, locsources, energy, aold);
 
         PERF_TIMER_BEGIN(TIMER_COMM);
         /* pack data */

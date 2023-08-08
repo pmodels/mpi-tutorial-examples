@@ -155,7 +155,7 @@ int main(int argc, char **argv)
     for (iter = 0; iter < niters; ++iter) {
 
         /* refresh heat sources */
-        refresh_heat_source(bx, NSOURCES, sources, energy, aold);
+        refresh_heat_source(bx, locnsources, locsources, energy, aold);
 
         PERF_TIMER_BEGIN(TIMER_COMM);
         MPI_Alltoallw(aold, send_counts, sdispls, types, aold, recv_counts, rdispls, types,
