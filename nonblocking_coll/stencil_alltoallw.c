@@ -39,10 +39,9 @@ int main(int argc, char **argv)
     int bx, by, offx, offy;
 
     /* three heat sources */
-    const int nsources = 3;
-    int sources[nsources][2];
+    int sources[NSOURCES][2];
     int locnsources;            /* number of sources in my area */
-    int locsources[nsources][2];        /* sources local to my rank */
+    int locsources[NSOURCES][2];        /* sources local to my rank */
 
     int *send_counts, *recv_counts;
     int *sdispls, *rdispls;
@@ -100,7 +99,7 @@ int main(int argc, char **argv)
     alloc_bufs(bx, by, &aold, &anew);
 
     /* initialize three heat sources */
-    init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
+    init_sources(bx, by, offx, offy, n, NSOURCES, sources, &locnsources, locsources);
 
     /* create north-south datatype */
     MPI_Datatype north_south_type;
@@ -164,7 +163,7 @@ int main(int argc, char **argv)
         double inner_heat, outer_heat;
 
         /* refresh heat sources */
-        refresh_heat_source(bx, nsources, sources, energy, aold);
+        refresh_heat_source(bx, NSOURCES, sources, energy, aold);
 
         PERF_TIMER_BEGIN(TIMER_COMM);
         MPI_Ialltoallw(aold, send_counts, sdispls, types, aold, recv_counts, rdispls, types,

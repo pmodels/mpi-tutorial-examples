@@ -13,6 +13,8 @@
 #include <string.h>
 #include <stdint.h>
 
+#define NSOURCES (3)
+
 void printarr_par(int iter, double *array, int size, int px, int py, int rx, int ry, int bx, int by,
                   int offx, int offy, int (*ind)(int i, int j, int bx), MPI_Comm comm);
 void setup(int rank, int proc, int argc, char **argv,

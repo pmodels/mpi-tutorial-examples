@@ -72,10 +72,9 @@ int main(int argc, char **argv)
     int bx, by, offx, offy;
 
     /* three heat sources */
-    const int nsources = 3;
-    int sources[nsources][2];
+    int sources[NSOURCES][2];
     int locnsources;            /* number of sources in my area */
-    int locsources[nsources][2];        /* sources local to my rank */
+    int locsources[NSOURCES][2];        /* sources local to my rank */
     int *locsources_d;
 
     double t1, t2;
@@ -146,7 +145,7 @@ int main(int argc, char **argv)
     /* printf("%i (%i,%i) - w: %i, e: %i, n: %i, s: %i\n", rank, ry,rx,west,east,north,south); */
 
     /* initialize three heat sources */
-    init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
+    init_sources(bx, by, offx, offy, n, NSOURCES, sources, &locnsources, locsources);
 
     /* create an asynchronous cuda stream */
     cudaStream_t s;

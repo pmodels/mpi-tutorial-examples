@@ -33,10 +33,9 @@ int main(int argc, char **argv)
     int bx, by, offx, offy;
 
     /* three heat sources */
-    const int nsources = 3;
-    int sources[nsources][2];
+    int sources[NSOURCES][2];
     int locnsources;            /* number of sources in my area */
-    int locsources[nsources][2];        /* sources local to my rank */
+    int locsources[NSOURCES][2];        /* sources local to my rank */
 
     int *send_counts, *recv_counts;
     int *sdispls, *rdispls;
@@ -91,7 +90,7 @@ int main(int argc, char **argv)
     /* printf("%i (%i,%i) - w: %i, e: %i, n: %i, s: %i\n", rank, ry,rx,west,east,north,south); */
 
     /* initialize three heat sources */
-    init_sources(bx, by, offx, offy, n, nsources, sources, &locnsources, locsources);
+    init_sources(bx, by, offx, offy, n, NSOURCES, sources, &locnsources, locsources);
 
     /* allocate working arrays */
     alloc_bufs(bx, by, &aold, &anew);
@@ -156,7 +155,7 @@ int main(int argc, char **argv)
     for (iter = 0; iter < niters; ++iter) {
 
         /* refresh heat sources */
-        refresh_heat_source(bx, nsources, sources, energy, aold);
+        refresh_heat_source(bx, NSOURCES, sources, energy, aold);
 
         PERF_TIMER_BEGIN(TIMER_COMM);
         MPI_Alltoallw(aold, send_counts, sdispls, types, aold, recv_counts, rdispls, types,
