@@ -13,6 +13,12 @@ BINS=stencil stencil_alltoallw bspmm_vector bspmm_subarray
 
 all: $(BINS)
 
+sendrecv_nc1: sendrecv_nc1.c
+
+sendrecv_nc2: sendrecv_nc2.c
+
+sendrecv_nc3: sendrecv_nc3.c
+
 stencil: stencil.c $(STENCIL_COMMON_SRC)
 	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
 
