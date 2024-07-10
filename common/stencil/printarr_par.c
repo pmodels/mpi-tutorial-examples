@@ -37,7 +37,7 @@ void printarr_par(int iter, double *array, int size, int px, int py, int rx, int
 
     int myrank;
 
-    int xcnt, ycnt, my_xcnt, my_ycnt;
+    int xcnt, ycnt, my_ycnt;
     int i;
     int linesize = bx * 3;
     int padding;
@@ -99,7 +99,6 @@ void printarr_par(int iter, double *array, int size, int px, int py, int rx, int
         padding = size * 3 % 4;
     myline = (char *) malloc(linesize + padding);
 
-    my_xcnt = 0;
     my_ycnt = 0;
     xcnt = 0;
     ycnt = size;
@@ -121,7 +120,6 @@ void printarr_par(int iter, double *array, int size, int px, int py, int rx, int
                 myline[i + 1] = 0;
                 myline[i + 2] = rgb;
             }
-            my_xcnt += bx;
             my_ycnt++;
             MPI_File_write_shared(fh, myline, linesize + padding, MPI_BYTE, MPI_STATUSES_IGNORE);
         }
