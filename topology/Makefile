@@ -5,7 +5,7 @@
 
 CC=mpicc
 CFLAGS= -g -Wall -I../common
-STENCIL_COMMON_SRC=../common/stencil/printarr_par.c ../common/perf_stat.c
+STENCIL_COMMON_SRC=../common/stencil/stencil_par.c ../common/stencil/printarr_par.c ../common/perf_stat.c
 STENCIL_CFLAGS= $(CFLAGS) -I../common/stencil
 BINS=stencil_carttopo stencil_carttopo_neighcolls
 
