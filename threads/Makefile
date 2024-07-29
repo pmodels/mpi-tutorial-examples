@@ -9,19 +9,22 @@ STENCIL_COMMON_SRC=../common/stencil/stencil_par.c ../common/stencil/printarr_pa
 STENCIL_CFLAGS=$(CFLAGS) -I../common/stencil
 BSPMM_COMMON_SRC=../common/bspmm/bspmm_common.c
 BSPMM_CFLAGS=$(CFLAGS) -I../common/bspmm
-BINS=stencil_funneled stencil_multiple stencil_multiple_ncomms
+BINS=stencil_openmp stencil_funneled stencil_multiple stencil_multiple_ncomms
 BINS+=bspmm_funneled bspmm_multiple bspmm_multiple_nwins
 
 all: $(BINS)
 
-stencil_funneled: stencil_funneled.c $(STENCIL_COMMON_SRC)
-	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
+stencil_openmp: stencil_openmp.c
+	$(CC) $(STENCIL_CFLAGS) $^ -o $@
 
-stencil_multiple: stencil_multiple.c $(STENCIL_COMMON_SRC)
-	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
+stencil_funneled: stencil_funneled.c
+	$(CC) $(STENCIL_CFLAGS) $^ -o $@
 
-stencil_multiple_ncomms: stencil_multiple_ncomms.c $(STENCIL_COMMON_SRC)
-	$(CC) $(STENCIL_CFLAGS) $^ -o $@ -lm
+stencil_multiple: stencil_multiple.c
+	$(CC) $(STENCIL_CFLAGS) $^ -o $@
+
+stencil_multiple_ncomms: stencil_multiple_ncomms.c
+	$(CC) $(STENCIL_CFLAGS) $^ -o $@
 
 bspmm_funneled: bspmm_funneled.c $(BSPMM_COMMON_SRC)
 	$(CC) $(BSPMM_CFLAGS) $^ -o $@

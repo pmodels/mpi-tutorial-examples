@@ -9,9 +9,12 @@ STENCIL_COMMON_SRC=../common/stencil/stencil_par.c ../common/stencil/printarr_pa
 STENCIL_CFLAGS= $(CFLAGS) -I../common/stencil
 BSPMM_COMMON_SRC=../common/bspmm/bspmm_common.c
 BSPMM_CFLAGS=$(CFLAGS) -I../common/bspmm
-BINS=stencil bspmm_counter
+BINS=stencil_shm stencil bspmm_counter
 
 all: $(BINS)
+
+stencil_shm: stencil_shm.c
+	mpicc stencil_shm.c -o stencil_shm
 
 sort_any_procs: sort_any_procs.c
 	$(CC) $(CFLAGS) $^ -o $@ -lm
