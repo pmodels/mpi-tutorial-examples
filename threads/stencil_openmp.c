@@ -65,6 +65,7 @@ int main(int argc, char **argv)
 
         /* update grid points */
         double heat = 0.0;
+#pragma omp parallel for reduction(+:heat) num_threads(10)
         for (int i = 1; i < bx + 1; ++i) {
             for (int j = 1; j < by + 1; ++j) {
                 anew[ind(i, j)] = aold[ind(i, j)] / 2.0 +

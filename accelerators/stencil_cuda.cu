@@ -592,7 +592,7 @@ __global__ void update_grid(int bx, int by, double *aold, double *anew, double *
     /* Update heat value at thread location */
     if (i < (bx + 1) && j < (by + 1)) {
         anew[ind(i, j)] =
-            anew[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] +
+            aold[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] +
                                      aold[ind(i + 1, j)] +
                                      aold[ind(i, j - 1)] + aold[ind(i, j + 1)]) / 4.0 / 2.0;
 

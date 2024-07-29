@@ -6,7 +6,7 @@
  * grid points in a halo region with its neighbors.
  */
 
-#include <omp.h>
+#include <cuda_runtime.h>
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -19,12 +19,52 @@ int n, niters, px, py;
 /* row-major order */
 #define ind(i,j) ((j)*(bx+2)+(i))
 
+void show_mem(double *a, int bx, int i, int j)
+{
+    double val;
+    cudaMemcpy(&val, &a[ind(i, j)], sizeof(double), cudaMemcpyDeviceToHost);
+    printf("  - (%d, %d) - %f\n", i, j, val);
+}
+
+__global__
+void init_grid(double *anew, double *aold)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x;
+    anew[i] = 0.0;
+    aold[i] = 0.0;
+}
+
+__global__
+void update_source(double *aold, int bx, int by, int i, int j, double energy)
+{
+    aold[ind(i,j)] += energy;
+}
+
+__global__
+void update_grid(double *anew, double *aold, int bx, int by)
+{
+    int i = blockIdx.x * blockDim.x + threadIdx.x + 1;
+    int j = blockIdx.y * blockDim.y + threadIdx.y + 1;
+    if (i <= bx && j <= by) {
+        anew[ind(i, j)] = aold[ind(i, j)] / 2.0 +
+                          (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
+                           aold[ind(i, j - 1)] + aold[ind(i, j + 1)]) / 4.0 / 2.0;
+    }
+}
+
+__global__
+void gather_heat(double *aold, int bx, int by, double *heat)
+{
+    *heat = 0.0;
+    for (int i = 1; i < bx + 1; i++)
+        for (int j = 1; j < by + 1; j++)
+            *heat += aold[ind(i, j)];
+}
+
 int main(int argc, char **argv)
 {
     /* initialize MPI envrionment */
-    int thread_level;
-    MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &thread_level);
-    assert(thread_level >= MPI_THREAD_FUNNELED);
+    MPI_Init(&argc, &argv);
 
     int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -63,6 +103,10 @@ int main(int argc, char **argv)
     bx = n / px;        /* block size in x */
     by = n / py;        /* block size in y */
 
+    /* NOTE: use 8x8 block size. */
+    assert(bx % 8 == 0);
+    assert(by % 8 == 0);
+
     /* energy to be injected per iteration per source */
     int energy = 1.0;
 
@@ -94,11 +138,10 @@ int main(int argc, char **argv)
     /* allocate working arrays & communication buffers.
      * NOTE: Include 1-wide hallo zones on each side. */
     double *aold, *anew;
-    anew = malloc((bx + 2) * (by + 2) * sizeof(double));
-    aold = malloc((bx + 2) * (by + 2) * sizeof(double));
+    cudaMalloc(&anew, (bx + 2) * (by + 2) * sizeof(double));
+    cudaMalloc(&aold, (bx + 2) * (by + 2) * sizeof(double));
     /* initialize */
-    memset(aold, 0, (bx + 2) * (by + 2) * sizeof(double));
-    memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));
+    init_grid<<<by + 2, bx + 2>>>(anew, aold);
 
     /* create north-south datatype */
     MPI_Datatype north_south_type;
@@ -110,13 +153,24 @@ int main(int argc, char **argv)
     MPI_Type_vector(by, 1, bx + 2, MPI_DOUBLE, &east_west_type);
     MPI_Type_commit(&east_west_type);
 
-    double t_begin = MPI_Wtime();
+    /* prepare kernel launching dimesnions */
+    dim3 block_dim = dim3(8, 8);
+    dim3 grid_dim = dim3(bx/8, by/8);
+    if (bx % 8) grid_dim.x++;
+    if (by % 8) grid_dim.y++;
+
     double last_heat;
+    double *heat;
+    cudaMalloc(&heat, sizeof(double));
+
+    double t_begin = MPI_Wtime();
     for (int iter = 0; iter < niters; ++iter) {
         /* refresh heat sources */
         for (int i = 0; i < locnsources; ++i) {
-            aold[ind(locsources[i][0], locsources[i][1])] += energy;
+            update_source<<<1, 1>>>(aold, bx, by, locsources[i][0], locsources[i][1], energy);
         }
+
+        cudaStreamSynchronize(NULL);
 
         /* exchange data with neighbors */
         MPI_Request reqs[8];
@@ -131,23 +185,17 @@ int main(int argc, char **argv)
         MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
 
         /* update grid points */
-        double heat = 0.0;
-#pragma omp parallel for reduction(+:heat) num_threads(4)
-        for (int j = 1; j < by + 1; ++j) {
-            for (int i = 1; i < bx + 1; ++i) {
-                anew[ind(i, j)] = aold[ind(i, j)] / 2.0 +
-                                  (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
-                                   aold[ind(i, j - 1)] + aold[ind(i, j + 1)]) / 4.0 / 2.0;
-                heat += anew[ind(i, j)];
-            }
-        }
-
-        last_heat = heat;
+        update_grid<<<grid_dim, block_dim>>>(anew, aold, bx, by);
 
         /* swap working arrays */
         double *tmp = anew;
         anew = aold;
         aold = tmp;
+
+        if (iter == niters - 1) {
+            gather_heat<<<1, 1>>>(aold, bx, by, heat);
+            cudaMemcpy(&last_heat, heat, sizeof(double), cudaMemcpyDeviceToHost);
+        }
     }
 
     double t_end = MPI_Wtime();
@@ -156,8 +204,9 @@ int main(int argc, char **argv)
     MPI_Type_free(&north_south_type);
 
     /* free working arrays and communication buffers */
-    free(aold);
-    free(anew);
+    cudaFree(heat);
+    cudaFree(aold);
+    cudaFree(anew);
 
     /* get final heat in the system */
     double rheat;

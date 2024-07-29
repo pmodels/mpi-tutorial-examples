@@ -209,7 +209,7 @@ void update_inner_grid(int bx, int by, double *aold, double *anew, double *heat_
     for (i = 1; i < bx - 1; ++i) {
         for (j = 1; j < by - 1; ++j) {
             anew[ind(i, j)] =
-                anew[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
+                aold[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
                                          aold[ind(i, j - 1)] + aold[ind(i, j + 1)]) / 4.0 / 2.0;
             heat += anew[ind(i, j)];
         }
@@ -251,7 +251,7 @@ void update_outer_grid(int bx, int by, double *aold, double *anew, int north, do
                 west_val = aold[ind(i - 1, j)];
             }
             anew[ind(i, j)] =
-                anew[ind(i, j)] / 2.0 + (north_val + south_val + east_val + west_val) / 4.0 / 2.0;
+                aold[ind(i, j)] / 2.0 + (north_val + south_val + east_val + west_val) / 4.0 / 2.0;
             heat += anew[ind(i, j)];
         }
     }
