@@ -138,7 +138,7 @@ int main(int argc, char **argv)
             for (i = 1; i < bx + 1; ++i) {
                 for (j = 1; j < by + 1; ++j) {
                     anew[ind(i, j)] =
-                        anew[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
+                        aold[ind(i, j)] / 2.0 + (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
                                                  aold[ind(i, j - 1)] +
                                                  aold[ind(i, j + 1)]) / 4.0 / 2.0;
                     heat += anew[ind(i, j)];
