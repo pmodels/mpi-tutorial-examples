@@ -67,7 +67,7 @@ int main(int argc, char **argv)
     blk_num = mat_dim / BLK_DIM;
 
     /* initialize matrices */
-    if (!rank) {
+    if (rank == 0) {
         mat_a = (double *) malloc(4 * mat_dim * mat_dim * sizeof(double));
         mat_b = mat_a + mat_dim * mat_dim;
         mat_c = mat_b + mat_dim * mat_dim;
@@ -93,7 +93,7 @@ int main(int argc, char **argv)
     work_id_len = blk_num * blk_num;    /* total number of work units */
 
     /* copy entire matrices to workers */
-    if (!rank) {
+    if (rank == 0) {
         /* send A and B to workers */
         int i;
         for (i = 1; i < nprocs; i++) {
@@ -132,7 +132,7 @@ int main(int argc, char **argv)
     }
 
     /* accumulate results */
-    if (!rank) {
+    if (rank == 0) {
         int i, j, k;
         /* sum C computed by workers */
         for (i = 1; i < nprocs; i++) {
@@ -152,7 +152,7 @@ int main(int argc, char **argv)
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    if (!rank) {
+    if (rank == 0) {
         check_mats(mat_a, mat_b, mat_c, mat_dim);
         printf("[%i] time: %f\n", rank, t2 - t1);
     }

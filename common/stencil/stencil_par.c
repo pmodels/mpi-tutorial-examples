@@ -17,7 +17,7 @@ void setup(int rank, int proc, int argc, char **argv,
     (*final_flag) = 0;
 
     if (argc != 5) {
-        if (!rank)
+        if (rank == 0)
             printf("usage: stencil_mpi <n> <niters> <px> <py>\n");
         (*final_flag) = 1;
         return;
