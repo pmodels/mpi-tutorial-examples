@@ -19,13 +19,6 @@ int n, niters, px, py;
 /* row-major order */
 #define ind(i,j) ((j)*(bx+2)+(i))
 
-void show_mem(double *a, int bx, int i, int j)
-{
-    double val;
-    cudaMemcpy(&val, &a[ind(i, j)], sizeof(double), cudaMemcpyDeviceToHost);
-    printf("  - (%d, %d) - %f\n", i, j, val);
-}
-
 __global__
 void init_grid(double *anew, double *aold)
 {
