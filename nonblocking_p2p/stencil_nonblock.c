@@ -100,13 +100,16 @@ int main(int argc, char **argv)
     memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));
 
     /* allocate communication buffers. */
-    /* NOTE: since we don't need to pack north and south data, we don't need malloc them */
     double *sbufnorth, *sbufsouth, *sbufeast, *sbufwest; /* send buffers */
     double *rbufnorth, *rbufsouth, *rbufeast, *rbufwest; /* recv buffers */
-    sbufeast = (double *) malloc(by * sizeof(double));
-    sbufwest = (double *) malloc(by * sizeof(double));
-    rbufeast = (double *) malloc(by * sizeof(double));
-    rbufwest = (double *) malloc(by * sizeof(double));
+    sbufnorth = (double *) calloc(bx, sizeof(double));
+    sbufsouth = (double *) calloc(bx, sizeof(double));
+    sbufeast = (double *) calloc(by, sizeof(double));
+    sbufwest = (double *) calloc(by, sizeof(double));
+    rbufnorth = (double *) calloc(bx, sizeof(double));
+    rbufsouth = (double *) calloc(bx, sizeof(double));
+    rbufeast = (double *) calloc(by, sizeof(double));
+    rbufwest = (double *) calloc(by, sizeof(double));
 
     double t_begin = MPI_Wtime();
     double last_heat;
@@ -117,10 +120,16 @@ int main(int argc, char **argv)
         }
 
         /* pack data for send */
-        sbufnorth = &aold[ind(1, 1)];
-        sbufsouth = &aold[ind(1, by)];
+        for (int i = 1; i < bx + 1; i++) {
+            sbufnorth[i - 1] = aold[ind(i, 1)];
+        }
+        for (int i = 1; i < bx + 1; i++) {
+            sbufsouth[i - 1] = aold[ind(i, by)];
+        }
         for (int j = 1; j < by + 1; j++) {
             sbufeast[j - 1] = aold[ind(bx, j)];
+        }
+        for (int j = 1; j < by + 1; j++) {
             sbufwest[j - 1] = aold[ind(1, j)];
         }
 
@@ -131,8 +140,6 @@ int main(int argc, char **argv)
         MPI_Isend(sbufeast,  by, MPI_DOUBLE,  east, 9, MPI_COMM_WORLD, &reqs[2]);
         MPI_Isend(sbufwest,  by, MPI_DOUBLE,  west, 9, MPI_COMM_WORLD, &reqs[3]);
 
-        rbufnorth = &aold[ind(1, 0)];
-        rbufsouth = &aold[ind(1, by + 1)];
         MPI_Irecv(rbufnorth, bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD, &reqs[4]);
         MPI_Irecv(rbufsouth, bx, MPI_DOUBLE, south, 9, MPI_COMM_WORLD, &reqs[5]);
         MPI_Irecv(rbufeast,  by, MPI_DOUBLE,  east, 9, MPI_COMM_WORLD, &reqs[6]);
@@ -140,15 +147,17 @@ int main(int argc, char **argv)
         MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
 
         /* unpack data after receive */
-        if (east != MPI_PROC_NULL) {
-            for (int j = 1; j < by + 1; j++) {
-                aold[ind(bx + 1, j)] = rbufeast[j - 1];
-            }
+        for (int i = 1; i < bx + 1; i++) {
+            aold[ind(i, 0)] = rbufnorth[i - 1];
         }
-        if (west != MPI_PROC_NULL) {
-            for (int j = 1; j < by + 1; j++) {
-                aold[ind(0, j)] = rbufwest[j - 1];
-            }
+        for (int i = 1; i < bx + 1; i++) {
+            aold[ind(i, by + 1)] = rbufsouth[i - 1];
+        }
+        for (int j = 1; j < by + 1; j++) {
+            aold[ind(bx + 1, j)] = rbufeast[j - 1];
+        }
+        for (int j = 1; j < by + 1; j++) {
+            aold[ind(0, j)] = rbufwest[j - 1];
         }
 
         /* update grid points */
@@ -175,8 +184,12 @@ int main(int argc, char **argv)
     /* free working arrays and communication buffers */
     free(aold);
     free(anew);
+    free(sbufnorth);
+    free(sbufsouth);
     free(sbufeast);
     free(sbufwest);
+    free(rbufnorth);
+    free(rbufsouth);
     free(rbufeast);
     free(rbufwest);
 
