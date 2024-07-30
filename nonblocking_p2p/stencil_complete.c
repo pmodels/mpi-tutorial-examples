@@ -24,19 +24,17 @@ int ind_f(int i, int j, int bx)
 }
 
 void alloc_comm_bufs(int bx, int by,
-                     double **sbufnorth_ptr, double **sbufsouth_ptr,
                      double **sbufeast_ptr, double **sbufwest_ptr,
-                     double **rbufnorth_ptr, double **rbufsouth_ptr,
                      double **rbufeast_ptr, double **rbufwest_ptr);
 
 void pack_data(int bx, int by, double *aold,
-               double *sbufnorth, double *sbufsouth, double *sbfueast, double *sbufwest);
+               double *sbfueast, double *sbufwest);
 
 void unpack_data(int bx, int by, double *aold,
-                 double *rbufnorth, double *rbufsouth, double *rbufeast, double *rbufwest);
+                 double *rbufeast, double *rbufwest);
 
-void free_comm_bufs(double *sbufnorth, double *sbufsouth, double *sbufeast, double *sbufwest,
-                    double *rbufnorth, double *rbufsouth, double *rbufeast, double *rbufwest);
+void free_comm_bufs(double *sbufeast, double *sbufwest,
+                    double *rbufeast, double *rbufwest);
 
 int main(int argc, char **argv)
 {
@@ -106,8 +104,7 @@ int main(int argc, char **argv)
 
     /* allocate working arrays & communication buffers */
     alloc_bufs(bx, by, &aold, &anew);
-    alloc_comm_bufs(bx, by, &sbufnorth, &sbufsouth, &sbufeast, &sbufwest,
-                    &rbufnorth, &rbufsouth, &rbufeast, &rbufwest);
+    alloc_comm_bufs(bx, by, &sbufeast, &sbufwest, &rbufeast, &rbufwest);
 
     PERF_TIMER_BEGIN(TIMER_EXEC);
 
@@ -120,7 +117,9 @@ int main(int argc, char **argv)
 
         PERF_TIMER_BEGIN(TIMER_COMM);
         /* pack data */
-        pack_data(bx, by, aold, sbufnorth, sbufsouth, sbufeast, sbufwest);
+        sbufnorth = &aold[ind(1, 1)];
+        sbufsouth = &aold[ind(1, by)];
+        pack_data(bx, by, aold, sbufeast, sbufwest);
 
         /* exchange data with neighbors */
         MPI_Isend(sbufnorth, bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD, &reqs[0]);
@@ -128,6 +127,8 @@ int main(int argc, char **argv)
         MPI_Isend(sbufeast, by, MPI_DOUBLE, east, 9, MPI_COMM_WORLD, &reqs[2]);
         MPI_Isend(sbufwest, by, MPI_DOUBLE, west, 9, MPI_COMM_WORLD, &reqs[3]);
 
+        rbufnorth = &aold[ind(1, 0)];
+        rbufsouth = &aold[ind(1, by + 1)];
         MPI_Irecv(rbufnorth, bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD, &reqs[4]);
         MPI_Irecv(rbufsouth, bx, MPI_DOUBLE, south, 9, MPI_COMM_WORLD, &reqs[5]);
         MPI_Irecv(rbufeast, by, MPI_DOUBLE, east, 9, MPI_COMM_WORLD, &reqs[6]);
@@ -136,7 +137,7 @@ int main(int argc, char **argv)
         MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
 
         /* unpack data */
-        unpack_data(bx, by, aold, rbufnorth, rbufsouth, rbufeast, rbufwest);
+        unpack_data(bx, by, aold, rbufeast, rbufwest);
         PERF_TIMER_END(TIMER_COMM);
 
         /* update grid points */
@@ -155,8 +156,7 @@ int main(int argc, char **argv)
     PERF_TIMER_END(TIMER_EXEC);
 
     /* free working arrays and communication buffers */
-    free_comm_bufs(sbufnorth, sbufsouth, sbufeast, sbufwest,
-                   rbufnorth, rbufsouth, rbufeast, rbufwest);
+    free_comm_bufs(sbufeast, sbufwest, rbufeast, rbufwest);
     free_bufs(aold, anew);
 
     /* get final heat in the system */
@@ -170,64 +170,41 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void alloc_comm_bufs(int bx, int by, double **sbufnorth_ptr, double **sbufsouth_ptr,
-                     double **sbufeast_ptr, double **sbufwest_ptr,
-                     double **rbufnorth_ptr, double **rbufsouth_ptr,
+void alloc_comm_bufs(int bx, int by, double **sbufeast_ptr, double **sbufwest_ptr,
                      double **rbufeast_ptr, double **rbufwest_ptr)
 {
-    double *sbufnorth, *sbufsouth, *sbufeast, *sbufwest;
-    double *rbufnorth, *rbufsouth, *rbufeast, *rbufwest;
+    double *sbufeast, *sbufwest;
+    double *rbufeast, *rbufwest;
 
     /* allocate communication buffers */
-    sbufnorth = (double *) malloc(bx * sizeof(double)); /* send buffers */
-    sbufsouth = (double *) malloc(bx * sizeof(double));
-    sbufeast = (double *) malloc(by * sizeof(double));
+    sbufeast = (double *) malloc(by * sizeof(double)); /* send buffers */
     sbufwest = (double *) malloc(by * sizeof(double));
-    rbufnorth = (double *) malloc(bx * sizeof(double)); /* receive buffers */
-    rbufsouth = (double *) malloc(bx * sizeof(double));
-    rbufeast = (double *) malloc(by * sizeof(double));
+    rbufeast = (double *) malloc(by * sizeof(double)); /* receive buffers */
     rbufwest = (double *) malloc(by * sizeof(double));
 
-    memset(sbufnorth, 0, bx * sizeof(double));
-    memset(sbufsouth, 0, bx * sizeof(double));
     memset(sbufeast, 0, by * sizeof(double));
     memset(sbufwest, 0, by * sizeof(double));
-    memset(rbufnorth, 0, bx * sizeof(double));
-    memset(rbufsouth, 0, bx * sizeof(double));
     memset(rbufeast, 0, by * sizeof(double));
     memset(rbufwest, 0, by * sizeof(double));
 
-    (*sbufnorth_ptr) = sbufnorth;
-    (*sbufsouth_ptr) = sbufsouth;
     (*sbufeast_ptr) = sbufeast;
     (*sbufwest_ptr) = sbufwest;
-    (*rbufnorth_ptr) = rbufnorth;
-    (*rbufsouth_ptr) = rbufsouth;
     (*rbufeast_ptr) = rbufeast;
     (*rbufwest_ptr) = rbufwest;
 }
 
-void free_comm_bufs(double *sbufnorth, double *sbufsouth, double *sbufeast, double *sbufwest,
-                    double *rbufnorth, double *rbufsouth, double *rbufeast, double *rbufwest)
+void free_comm_bufs(double *sbufeast, double *sbufwest, double *rbufeast, double *rbufwest)
 {
-    free(sbufnorth);
-    free(sbufsouth);
     free(sbufeast);
     free(sbufwest);
-    free(rbufnorth);
-    free(rbufsouth);
     free(rbufeast);
     free(rbufwest);
 }
 
 void pack_data(int bx, int by, double *aold,
-               double *sbufnorth, double *sbufsouth, double *sbufeast, double *sbufwest)
+               double *sbufeast, double *sbufwest)
 {
     int i;
-    for (i = 0; i < bx; ++i)
-        sbufnorth[i] = aold[ind(i + 1, 1)];     /* #1 row */
-    for (i = 0; i < bx; ++i)
-        sbufsouth[i] = aold[ind(i + 1, by)];    /* #(by) row */
     for (i = 0; i < by; ++i)
         sbufeast[i] = aold[ind(bx, i + 1)];     /* #(bx) col */
     for (i = 0; i < by; ++i)
@@ -235,13 +212,9 @@ void pack_data(int bx, int by, double *aold,
 }
 
 void unpack_data(int bx, int by, double *aold,
-                 double *rbufnorth, double *rbufsouth, double *rbufeast, double *rbufwest)
+                 double *rbufeast, double *rbufwest)
 {
     int i;
-    for (i = 0; i < bx; ++i)
-        aold[ind(i + 1, 0)] = rbufnorth[i];     /* #0 row */
-    for (i = 0; i < bx; ++i)
-        aold[ind(i + 1, by + 1)] = rbufsouth[i];        /* #(by+1) row */
     for (i = 0; i < by; ++i)
         aold[ind(bx + 1, i + 1)] = rbufeast[i]; /* #(bx+1) col */
     for (i = 0; i < by; ++i)
