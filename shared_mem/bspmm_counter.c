@@ -76,7 +76,7 @@ int main(int argc, char **argv)
     /* number of blocks in one dimension */
     blk_num = mat_dim / BLK_DIM;
 
-    if (!rank) {
+    if (rank == 0) {
         /* create RMA windows */
         MPI_Win_allocate_shared(3 * mat_dim * mat_dim * sizeof(double), sizeof(double),
                                 MPI_INFO_NULL, shm_comm, &win_mem, &win);
@@ -166,7 +166,7 @@ int main(int argc, char **argv)
     MPI_Barrier(MPI_COMM_WORLD);
     t2 = MPI_Wtime();
 
-    if (!rank) {
+    if (rank == 0) {
         MPI_Win_sync(win);      /* ensure remote updates are locally visible */
         check_mats(mat_a, mat_b, mat_c, mat_dim);
         printf("[%i] time: %f\n", rank, t2 - t1);

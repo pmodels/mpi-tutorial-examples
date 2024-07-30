@@ -161,7 +161,7 @@ int main(int argc, char **argv)
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    if (!rank) {
+    if (rank == 0) {
         printf("[%i] last heat: %f\n", rank, rheat);
         PERF_PRINT();
     }

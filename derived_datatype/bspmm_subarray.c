@@ -70,7 +70,7 @@ int main(int argc, char **argv)
     blk_num = mat_dim / BLK_DIM;
 
     /* initialize matrices */
-    if (!rank) {
+    if (rank == 0) {
         mat_a = (double *) malloc(3 * mat_dim * mat_dim * sizeof(double));
         mat_b = mat_a + mat_dim * mat_dim;
         mat_c = mat_b + mat_dim * mat_dim;
@@ -96,7 +96,7 @@ int main(int argc, char **argv)
 
     work_id_len = blk_num * blk_num;    /* total number of work units */
 
-    if (!rank) {
+    if (rank == 0) {
         /* distribute A and B and receive results. */
         int work_start_id = 0;
 
@@ -224,14 +224,14 @@ int main(int argc, char **argv)
 
     MPI_Barrier(MPI_COMM_WORLD);
 
-    if (!rank) {
+    if (rank == 0) {
         check_mats(mat_a, mat_b, mat_c, mat_dim);
         printf("[%i] time: %f\n", rank, t2 - t1);
     }
 
     MPI_Type_free(&blk_dtp);
     free(local_a);
-    if (!rank) {
+    if (rank == 0) {
         free(mat_a);
     }
 
