@@ -16,18 +16,19 @@ void setup(int rank, int proc, int argc, char **argv,
 
     (*final_flag) = 0;
 
-    if (argc < 6) {
-        if (!rank)
-            printf("usage: stencil_mpi <n> <energy> <niters> <px> <py>\n");
+    if (argc != 5) {
+        if (rank == 0)
+            printf("usage: stencil_mpi <n> <niters> <px> <py>\n");
         (*final_flag) = 1;
         return;
     }
 
+    energy = 1;     /* energy to be injected per iteration, hardcoded to 1 */
+
     n = atoi(argv[1]);  /* nxn grid */
-    energy = atoi(argv[2]);     /* energy to be injected per iteration */
-    niters = atoi(argv[3]);     /* number of iterations */
-    px = atoi(argv[4]); /* 1st dim processes */
-    py = atoi(argv[5]); /* 2nd dim processes */
+    niters = atoi(argv[2]);     /* number of iterations */
+    px = atoi(argv[3]); /* 1st dim processes */
+    py = atoi(argv[4]); /* 2nd dim processes */
 
     if (px * py != proc) {
         fprintf(stderr, "px * py must equal to the number of processes.\n");

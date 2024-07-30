@@ -10,7 +10,7 @@ int setup(int rank, int nprocs, int argc, char **argv, int *mat_dim_ptr)
     int mat_dim;
 
     if (argc != 2) {
-        if (!rank)
+        if (rank == 0)
             printf("usage: bspmm_mpi <m>\n");
         return 1;
     }
@@ -19,7 +19,7 @@ int setup(int rank, int nprocs, int argc, char **argv, int *mat_dim_ptr)
 
     if (mat_dim % BLK_DIM != 0) {
         int new_mat_dim = ((mat_dim + BLK_DIM - 1) / BLK_DIM) * BLK_DIM;
-        if (!rank)
+        if (rank == 0)
             printf("mat_dim: %d -> %d\n", mat_dim, new_mat_dim);
         mat_dim = new_mat_dim;
     }
