@@ -188,7 +188,7 @@ int main(int argc, char **argv)
 
     /* get final heat in the system */
     MPI_Allreduce(&heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    if (!rank)
+    if (rank == 0)
         printf("[%i] last heat: %f time: %f\n", rank, rheat, t2 - t1);
 
     MPI_Finalize();
@@ -204,7 +204,7 @@ void setup(int rank, int proc, int argc, char **argv,
     (*final_flag) = 0;
 
     if (argc < 6) {
-        if (!rank)
+        if (rank == 0)
             printf
                 ("usage: stencil_mpi <n> <energy> <niters> <px> <py> <ckpt_prefix> <restart_iter>\n");
         (*final_flag) = 1;

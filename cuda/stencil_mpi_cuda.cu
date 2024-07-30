@@ -19,13 +19,6 @@ int n, niters, px, py;
 /* row-major order */
 #define ind(i,j) ((j)*(bx+2)+(i))
 
-void show_mem(double *a, int bx, int i, int j)
-{
-    double val;
-    cudaMemcpy(&val, &a[ind(i, j)], sizeof(double), cudaMemcpyDeviceToHost);
-    printf("  - (%d, %d) - %f\n", i, j, val);
-}
-
 __global__
 void init_grid(double *anew, double *aold)
 {
@@ -72,7 +65,7 @@ int main(int argc, char **argv)
 
     /* get input parameters from command line options */
     if (argc != 5) {
-        if (!rank)
+        if (rank == 0)
             printf("usage: %s <n> <niters> <px> <py>\n", argv[0]);
         MPI_Finalize();
         return 0;
@@ -211,7 +204,7 @@ int main(int argc, char **argv)
     /* get final heat in the system */
     double rheat;
     MPI_Allreduce(&last_heat, &rheat, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    if (!rank) {
+    if (rank == 0) {
         printf("last heat: %f\n", rheat);
         printf("    Total computation time: %.6f sec.\n", t_end - t_begin);
     }

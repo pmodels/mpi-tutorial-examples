@@ -94,15 +94,16 @@ void setup(int argc, char **argv, int *n_ptr, int *energy_ptr, int *niters_ptr, 
 
     (*final_flag) = 0;
 
-    if (argc < 4) {
-        printf("usage: stencil <n> <energy> <niters>\n");
+    if (argc != 3) {
+        printf("usage: stencil <n> <niters>\n");
         (*final_flag) = 1;
         return;
     }
 
+    energy = 1;     /* energy to be injected per iteration, hardcoded to 1 */
+
     n = atoi(argv[1]);  /* nxn grid */
-    energy = atoi(argv[2]);     /* energy to be injected per iteration */
-    niters = atoi(argv[3]);     /* number of iterations */
+    niters = atoi(argv[2]);     /* number of iterations */
 
     (*n_ptr) = n;
     (*energy_ptr) = energy;

@@ -78,7 +78,7 @@ int main(int argc, char **argv)
     /* allocate RMA windows for matrices a and b; separate window for each thread */
     wins_ab = (MPI_Win *) malloc(sizeof(MPI_Win) * num_threads);
 
-    if (!rank) {
+    if (rank == 0) {
         /* allocate RMA memory for matrices a and b */
         mats_ab = (double *) malloc(2 * mat_dim * mat_dim * sizeof(double));
         /* allocate and create RMA windows for matrix C and global counter */
@@ -196,7 +196,7 @@ int main(int argc, char **argv)
     MPI_Barrier(MPI_COMM_WORLD);
     t2 = MPI_Wtime();
 
-    if (!rank) {
+    if (rank == 0) {
         MPI_Win_sync(win_c);    /* MEM_MODE: synchronize private and public window copies */
         check_mats(mat_a, mat_b, mat_c, mat_dim);
         int nthreads = omp_get_max_threads();
@@ -220,7 +220,7 @@ int main(int argc, char **argv)
 
     MPI_Type_free(&blk_dtp);
     free(local_a);
-    if (!rank)
+    if (rank == 0)
         free(mats_ab);
     MPI_Win_free(&win_counter);
     MPI_Win_free(&win_c);

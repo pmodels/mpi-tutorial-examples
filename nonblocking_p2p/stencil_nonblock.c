@@ -6,7 +6,6 @@
  * grid points in a halo region with its neighbors.
  */
 
-#include <omp.h>
 #include <mpi.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,9 +21,7 @@ int n, niters, px, py;
 int main(int argc, char **argv)
 {
     /* initialize MPI envrionment */
-    int thread_level;
-    MPI_Init_thread(&argc, &argv, MPI_THREAD_FUNNELED, &thread_level);
-    assert(thread_level >= MPI_THREAD_FUNNELED);
+    MPI_Init(&argc, &argv);
 
     int rank, size;
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -63,6 +60,8 @@ int main(int argc, char **argv)
     bx = n / px;        /* block size in x */
     by = n / py;        /* block size in y */
 
+    // printf("%i (%i,%i) - w: %i, e: %i, n: %i, s: %i\n", rank, ry,rx,west,east,north,south);
+
     /* energy to be injected per iteration per source */
     int energy = 1.0;
 
@@ -100,15 +99,17 @@ int main(int argc, char **argv)
     memset(aold, 0, (bx + 2) * (by + 2) * sizeof(double));
     memset(anew, 0, (bx + 2) * (by + 2) * sizeof(double));
 
-    /* create north-south datatype */
-    MPI_Datatype north_south_type;
-    MPI_Type_contiguous(bx, MPI_DOUBLE, &north_south_type);
-    MPI_Type_commit(&north_south_type);
-
-    /* create east-west datatype */
-    MPI_Datatype east_west_type;
-    MPI_Type_vector(by, 1, bx + 2, MPI_DOUBLE, &east_west_type);
-    MPI_Type_commit(&east_west_type);
+    /* allocate communication buffers. */
+    double *sbufnorth, *sbufsouth, *sbufeast, *sbufwest; /* send buffers */
+    double *rbufnorth, *rbufsouth, *rbufeast, *rbufwest; /* recv buffers */
+    sbufnorth = (double *) calloc(bx, sizeof(double));
+    sbufsouth = (double *) calloc(bx, sizeof(double));
+    sbufeast = (double *) calloc(by, sizeof(double));
+    sbufwest = (double *) calloc(by, sizeof(double));
+    rbufnorth = (double *) calloc(bx, sizeof(double));
+    rbufsouth = (double *) calloc(bx, sizeof(double));
+    rbufeast = (double *) calloc(by, sizeof(double));
+    rbufwest = (double *) calloc(by, sizeof(double));
 
     double t_begin = MPI_Wtime();
     double last_heat;
@@ -118,23 +119,51 @@ int main(int argc, char **argv)
             aold[ind(locsources[i][0], locsources[i][1])] += energy;
         }
 
+        /* pack data for send */
+        for (int i = 1; i < bx + 1; i++) {
+            sbufnorth[i - 1] = aold[ind(i, 1)];
+        }
+        for (int i = 1; i < bx + 1; i++) {
+            sbufsouth[i - 1] = aold[ind(i, by)];
+        }
+        for (int j = 1; j < by + 1; j++) {
+            sbufeast[j - 1] = aold[ind(bx, j)];
+        }
+        for (int j = 1; j < by + 1; j++) {
+            sbufwest[j - 1] = aold[ind(1, j)];
+        }
+
         /* exchange data with neighbors */
         MPI_Request reqs[8];
-        MPI_Isend(&aold[ind(1, 1)],      1, north_south_type, north, 9, MPI_COMM_WORLD, &reqs[0]);
-        MPI_Isend(&aold[ind(1, by)],     1, north_south_type, south, 9, MPI_COMM_WORLD, &reqs[1]);
-        MPI_Isend(&aold[ind(bx, 1)],     1, east_west_type,    east, 9, MPI_COMM_WORLD, &reqs[2]);
-        MPI_Isend(&aold[ind(1, 1)],      1, east_west_type,    west, 9, MPI_COMM_WORLD, &reqs[3]);
-        MPI_Irecv(&aold[ind(1, 0)],      1, north_south_type, north, 9, MPI_COMM_WORLD, &reqs[4]);
-        MPI_Irecv(&aold[ind(1, by + 1)], 1, north_south_type, south, 9, MPI_COMM_WORLD, &reqs[5]);
-        MPI_Irecv(&aold[ind(bx + 1, 1)], 1, east_west_type,    east, 9, MPI_COMM_WORLD, &reqs[6]);
-        MPI_Irecv(&aold[ind(0, 1)],      1, east_west_type,    west, 9, MPI_COMM_WORLD, &reqs[7]);
+        MPI_Isend(sbufnorth, bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD, &reqs[0]);
+        MPI_Isend(sbufsouth, bx, MPI_DOUBLE, south, 9, MPI_COMM_WORLD, &reqs[1]);
+        MPI_Isend(sbufeast,  by, MPI_DOUBLE,  east, 9, MPI_COMM_WORLD, &reqs[2]);
+        MPI_Isend(sbufwest,  by, MPI_DOUBLE,  west, 9, MPI_COMM_WORLD, &reqs[3]);
+
+        MPI_Irecv(rbufnorth, bx, MPI_DOUBLE, north, 9, MPI_COMM_WORLD, &reqs[4]);
+        MPI_Irecv(rbufsouth, bx, MPI_DOUBLE, south, 9, MPI_COMM_WORLD, &reqs[5]);
+        MPI_Irecv(rbufeast,  by, MPI_DOUBLE,  east, 9, MPI_COMM_WORLD, &reqs[6]);
+        MPI_Irecv(rbufwest,  by, MPI_DOUBLE,  west, 9, MPI_COMM_WORLD, &reqs[7]);
         MPI_Waitall(8, reqs, MPI_STATUSES_IGNORE);
+
+        /* unpack data after receive */
+        for (int i = 1; i < bx + 1; i++) {
+            aold[ind(i, 0)] = rbufnorth[i - 1];
+        }
+        for (int i = 1; i < bx + 1; i++) {
+            aold[ind(i, by + 1)] = rbufsouth[i - 1];
+        }
+        for (int j = 1; j < by + 1; j++) {
+            aold[ind(bx + 1, j)] = rbufeast[j - 1];
+        }
+        for (int j = 1; j < by + 1; j++) {
+            aold[ind(0, j)] = rbufwest[j - 1];
+        }
 
         /* update grid points */
         double heat = 0.0;
-#pragma omp parallel for reduction(+:heat) num_threads(4)
-        for (int j = 1; j < by + 1; ++j) {
-            for (int i = 1; i < bx + 1; ++i) {
+        for (int i = 1; i < bx + 1; ++i) {
+            for (int j = 1; j < by + 1; ++j) {
                 anew[ind(i, j)] = aold[ind(i, j)] / 2.0 +
                                   (aold[ind(i - 1, j)] + aold[ind(i + 1, j)] +
                                    aold[ind(i, j - 1)] + aold[ind(i, j + 1)]) / 4.0 / 2.0;
@@ -152,12 +181,17 @@ int main(int argc, char **argv)
 
     double t_end = MPI_Wtime();
 
-    MPI_Type_free(&east_west_type);
-    MPI_Type_free(&north_south_type);
-
     /* free working arrays and communication buffers */
     free(aold);
     free(anew);
+    free(sbufnorth);
+    free(sbufsouth);
+    free(sbufeast);
+    free(sbufwest);
+    free(rbufnorth);
+    free(rbufsouth);
+    free(rbufeast);
+    free(rbufwest);
 
     /* get final heat in the system */
     double rheat;
