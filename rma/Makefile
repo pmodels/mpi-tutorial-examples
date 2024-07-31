@@ -13,8 +13,10 @@ STENCIL_COMMON_SRC=../common/stencil/stencil_par.c ../common/stencil/printarr_pa
 STENCIL_CFLAGS=$(CFLAGS) -I../common/stencil
 BSPMM_COMMON_SRC=../common/bspmm/bspmm_common.c
 BSPMM_CFLAGS=$(CFLAGS) -I../common/bspmm
+DISPW_CFLAGS=$(DISPW_CFLAGS)
 BINS=stencil_fence_put stencil_fence_get stencil_pscw_put stencil_lock_put
 BINS+=bspmm bspmm_counter
+BINS+=dispatch_worker rma_dispatch_worker
 
 all: $(BINS)
 
@@ -35,6 +37,12 @@ bspmm: bspmm.c $(BSPMM_COMMON_SRC)
 
 bspmm_counter: bspmm_counter.c $(BSPMM_COMMON_SRC)
 	$(CC) $(BSPMM_CFLAGS) $^ -o $@
+
+dispatch_worker: dispatch_worker.c
+	$(CC) $(DISPW_CFLAGS) $^ -o $@
+
+rma_dispatch_worker: rma_dispatch_worker.c
+	$(CC) $(DISPW_CFLAGS) $^ -o $@
 
 clean:
 	rm -f $(BINS)
