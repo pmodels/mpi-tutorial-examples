@@ -51,12 +51,12 @@ int main(int argc, char *argv[])
         /* wait completion */
         MPI_Barrier(MPI_COMM_WORLD);
 
-        printf("The correct average of the array is %.4lf\n", correct_sum / data_array_len);
-        printf("The average calculated by workers is %.4lf\n", global_sum / data_array_len);
-
         free(data);
         free(sub_array_len);
         free(sub_array_start);
+
+        printf("The correct average of the array is %.4lf\n", correct_sum / data_array_len);
+        printf("The average calculated by workers is %.4lf\n", global_sum / data_array_len);
     } else {
         /* worker */
         MPI_Barrier(MPI_COMM_WORLD);
