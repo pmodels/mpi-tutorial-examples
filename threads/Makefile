@@ -3,7 +3,11 @@
 # See COPYRIGHT in top-level directory.
 #
 
+ifdef CRAY_CPU_TARGET
+CC=cc
+else
 CC=mpicc
+endif
 CFLAGS= -g -Wall -fopenmp -I../common
 STENCIL_COMMON_SRC=../common/stencil/stencil_par.c ../common/stencil/printarr_par.c ../common/perf_stat.c
 STENCIL_CFLAGS=$(CFLAGS) -I../common/stencil
