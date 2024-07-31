@@ -62,9 +62,6 @@ int main(int argc, char *argv[])
         /* wait completion */
         MPI_Barrier(MPI_COMM_WORLD);
 
-        printf("The correct average of the array is %.4lf\n", correct_sum / data_array_len);
-        printf("The average calculated by workers is %.4lf\n", global_sum / data_array_len);
-
         MPI_Win_free(&w_data);
         MPI_Win_free(&w_sub_array_len);
         MPI_Win_free(&w_sub_array_start);
@@ -74,6 +71,9 @@ int main(int argc, char *argv[])
         free(data);
         free(sub_array_len);
         free(sub_array_start);
+
+        printf("The correct average of the array is %.4lf\n", correct_sum / data_array_len);
+        printf("The average calculated by workers is %.4lf\n", global_sum / data_array_len);
     } else {
         /* worker */
         MPI_Win_create(NULL, 0, sizeof(double), MPI_INFO_NULL, MPI_COMM_WORLD, &w_data);
