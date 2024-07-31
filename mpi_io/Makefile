@@ -3,7 +3,11 @@
 # See COPYRIGHT in top-level directory.
 #
 
+ifdef CRAY_CPU_TARGET
+CC=cc
+else
 CC=mpicc
+endif
 STENCIL_COMMON_SRC=../common/stencil/printarr_par.c ../common/perf_stat.c
 STENCIL_CFLAGS= -g -I../common/stencil -I../common
 BINS=stencil_carttopo_chkpt_coll stencil_carttopo_chkpt_icoll stencil_carttopo_chkpt_indep stencil_carttopo_chkpt_serial

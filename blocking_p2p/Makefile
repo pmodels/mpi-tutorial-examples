@@ -3,7 +3,11 @@
 # See COPYRIGHT in top-level directory.
 #
 
+ifdef CRAY_CPU_TARGET
+CC=cc
+else
 CC=mpicc
+endif
 CFLAGS= -g -Wall
 BSPMM_COMMON_SRC=../common/bspmm/bspmm_common.c
 BSPMM_CFLAGS=$(CFLAGS) -I../common/bspmm
