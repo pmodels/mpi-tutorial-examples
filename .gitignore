@@ -19,3 +19,8 @@ blocking_coll/stencil_alltoallv
 blocking_coll/sort_any_procs
 
 nonblocking_coll/stencil_alltoallw
+
+unintended-sync/unintended-sync1
+unintended-sync/unintended-sync2
+unintended-sync/unintended-sync3
+unintended-sync/unintended-sync4
