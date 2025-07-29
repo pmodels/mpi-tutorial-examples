@@ -89,7 +89,7 @@ int main(int argc, char **argv)
     }
 
     /* allocate working arrays via RMA window.
-     * NOTE: Include 1-wide hallo zones on each side. */
+     * NOTE: Include 1-wide halo zones on each side. */
     MPI_Win win;
     double *win_mem;
     int grid_size = (bx + 2) * (by + 2);

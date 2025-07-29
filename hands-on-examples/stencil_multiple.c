@@ -70,7 +70,7 @@ int main(int argc, char **argv)
     sources[2][1] = n * 8 / 9;
 
     /* allocate working arrays & communication buffers.
-     * NOTE: Include 1-wide hallo zones on each side.
+     * NOTE: Include 1-wide halo zones on each side.
      * NOTE: do not initialize here */
     double *aold_shared, *anew_shared;
     anew_shared = malloc((bx + 2) * (by + 2) * sizeof(double));
