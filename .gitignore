@@ -3,6 +3,7 @@
 *.dSYM
 compile_commands.json
 .cache
+*~
 
 serial/stencil
 
