@@ -17,7 +17,7 @@ BINS=stencil bspmm_pack
 
 all: $(BINS)
 
-stencil: stencil.c
+stencil: stencil.c $(STENCIL_COMMON_SRC)
 	$(CC) $(STENCIL_CFLAGS) $^ -o $@
 
 bspmm_pack: bspmm_pack.c $(BSPMM_COMMON_SRC)
