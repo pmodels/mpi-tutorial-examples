@@ -69,7 +69,10 @@ int main(int argc, char *argv[])
     pi = 0;
     MPI_Win_fence(0, w_mypi);
     for (int idx = 0; idx < numprocs; idx++) {
-        MPI_Get(&tmp, 1, MPI_DOUBLE, idx, 0, 1, MPI_DOUBLE, w_mypi);
+        /* rank 0 gets all the results */
+        if (myid == 0) {
+            MPI_Get(&tmp, 1, MPI_DOUBLE, idx, 0, 1, MPI_DOUBLE, w_mypi);
+        }
         MPI_Win_fence(0, w_mypi);
         pi += tmp;
     }
